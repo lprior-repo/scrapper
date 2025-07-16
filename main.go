@@ -50,6 +50,14 @@ func runOverseer(ctx context.Context) error {
 
 	if checkIsDevelopment(config) {
 		runDemoOperations(ctx, graphConn)
+		
+		// Also run GitHub scanner demo if enabled
+		if os.Getenv("ENABLE_GITHUB_SCANNER") == "true" {
+			log.Println("Running GitHub scanner demo...")
+			if err := demonstrateGitHubScanner(ctx); err != nil {
+				log.Printf("GitHub scanner demo failed: %v", err)
+			}
+		}
 	}
 
 	return waitForShutdown(ctx)

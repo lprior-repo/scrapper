@@ -7,6 +7,50 @@ import (
 	"github.com/samber/lo"
 )
 
+// Node represents a graph node
+type Node struct {
+	ID         string                 `json:"id"`
+	Labels     []string               `json:"labels"`
+	Properties map[string]interface{} `json:"properties"`
+}
+
+// Relationship represents a graph relationship
+type Relationship struct {
+	ID         string                 `json:"id"`
+	Type       string                 `json:"type"`
+	FromID     string                 `json:"from_id"`
+	ToID       string                 `json:"to_id"`
+	Properties map[string]interface{} `json:"properties"`
+}
+
+// BatchOperation represents a batch operation
+type BatchOperation struct {
+	Type       string                 `json:"type"`
+	Query      string                 `json:"query"`
+	Parameters map[string]interface{} `json:"parameters"`
+}
+
+// GraphServiceConfig holds configuration for graph services
+type GraphServiceConfig struct {
+	Provider string `json:"provider"`
+	Neo4j    struct {
+		URI      string `json:"uri"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+	} `json:"neo4j"`
+	Neptune struct {
+		Endpoint string `json:"endpoint"`
+		Region   string `json:"region"`
+	} `json:"neptune"`
+}
+
+// Neo4jConfig holds Neo4j-specific configuration
+type Neo4jConfig struct {
+	URI      string
+	Username string
+	Password string
+}
+
 // GraphOperationRequest represents a request for graph operations
 type GraphOperationRequest struct {
 	Operation  string                 `json:"operation"`

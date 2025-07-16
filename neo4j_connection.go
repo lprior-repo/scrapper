@@ -8,12 +8,6 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// Neo4jConfig holds configuration for Neo4j connection
-type Neo4jConfig struct {
-	URI      string
-	Username string
-	Password string
-}
 
 func createNeo4jDriver(config Neo4jConfig) (neo4j.DriverWithContext, error) {
 	auth := neo4j.BasicAuth(config.Username, config.Password, "")
