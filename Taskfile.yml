@@ -1,0 +1,149 @@
+version: '3'
+
+tasks:
+  setup:
+    desc: Set up the development environment
+    cmds:
+      - docker compose up -d neo4j
+      - task: wait-for-neo4j
+      - echo "Development environment ready"
+
+  wait-for-neo4j:
+    desc: Wait for Neo4j to be ready
+    cmds:
+      - |
+        echo "Waiting for Neo4j to be ready..."
+        until docker compose exec neo4j cypher-shell -u neo4j -p password "RETURN 1" > /dev/null 2>&1; do
+          echo "Neo4j is not ready yet. Waiting 5 seconds..."
+          sleep 5
+        done
+        echo "Neo4j is ready!"
+
+  run:
+    desc: Run the overseer application
+    deps: [setup]
+    cmds:
+      - go run .
+
+  test:
+    desc: Run all tests including unit, property-based, integration, acceptance, and COMPREHENSIVE mutation tests
+    deps: [setup]
+    cmds:
+      - echo "Running complete test suite..."
+      - go test ./... -v -timeout=60s -skip TestComprehensiveMutationTesting
+      - echo "Running COMPREHENSIVE mutation testing on ALL code..."
+      - echo "This will test every single line of code for maximum bug detection"
+      - echo "No tiers, no alternatives - just maximum stringency as mandated"
+      - go test -v -run TestComprehensiveMutationTesting -timeout=60m
+      - echo "All tests completed successfully!"
+
+  test-unit:
+    desc: Run unit tests only
+    deps: [setup]
+    cmds:
+      - go test ./... -v -short
+
+  test-integration:
+    desc: Run integration tests only
+    deps: [setup]
+    cmds:
+      - go test ./... -v -run Integration
+
+  clean:
+    desc: Clean up development environment
+    cmds:
+      - docker compose down
+      - docker volume rm scrapper_neo4j_data scrapper_neo4j_logs || true
+
+  reset:
+    desc: Reset the development environment
+    cmds:
+      - task: clean
+      - task: setup
+
+  logs:
+    desc: Show Neo4j logs
+    cmds:
+      - docker compose logs -f neo4j
+
+  test-mutation:
+    desc: Run comprehensive mutation tests on ALL code (mandated approach)
+    deps: [setup]
+    cmds:
+      - echo "🧬 Running COMPREHENSIVE mutation testing on ALL code..."
+      - echo "This will test every single line of code for maximum bug detection"
+      - echo "No tiers, no alternatives - just maximum stringency as mandated"
+      - go test -v -run TestComprehensiveMutationTesting -timeout=60m
+      - echo "Comprehensive mutation testing completed!"
+
+  test-all:
+    desc: Run all types of tests (unit, property-based, integration, acceptance)
+    deps: [setup]
+    cmds:
+      - echo "Running unit tests..."
+      - go test -v -run "TestParseNodeID|TestGetEnvOrDefault|TestConfigValidation|TestConfigEnvironment"
+      - echo "Running property-based tests..."
+      - go test -v -run "TestProperty" -timeout=30s
+      - echo "Running integration tests..."
+      - go test -v -run "TestIntegration"
+      - echo "Running acceptance tests..."
+      - go test -v -run "TestAcceptance"
+      - echo "All test types completed successfully!"
+
+  lint:
+    desc: Run golangci-lint with comprehensive checks
+    cmds:
+      - golangci-lint run --config .golangci.yml --verbose
+      - echo "Linting completed successfully!"
+
+  lint-fix:
+    desc: Run golangci-lint with auto-fix enabled
+    cmds:
+      - golangci-lint run --config .golangci.yml --fix --verbose
+      - echo "Linting with auto-fix completed!"
+
+  security:
+    desc: Run security analysis
+    cmds:
+      - gosec -fmt=json -out=gosec-report.json ./...
+      - echo "Security analysis completed! Check gosec-report.json for results."
+
+  coverage:
+    desc: Run tests with coverage analysis
+    deps: [setup]
+    cmds:
+      - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - go tool cover -func=coverage.out
+      - echo "Coverage analysis completed! Open coverage.html in a browser."
+
+  check-coverage:
+    desc: Check if test coverage meets minimum requirements (95%)
+    deps: [coverage]
+    cmds:
+      - |
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Total coverage: ${COVERAGE}%"
+        if (( $(echo "${COVERAGE} < 95" | bc -l) )); then
+          echo "❌ Coverage ${COVERAGE}% is below required 95%"
+          exit 1
+        else
+          echo "✅ Coverage ${COVERAGE}% meets the requirement!"
+        fi
+
+  quality:
+    desc: Run comprehensive code quality checks
+    deps: [setup]
+    cmds:
+      - task: lint
+      - task: security
+      - task: check-coverage
+      - task: test-all
+      - echo "✅ All quality checks passed!"
+
+  ci:
+    desc: Run the same checks as CI
+    deps: [setup]
+    cmds:
+      - task: quality
+      - echo "✅ CI checks completed successfully!"
