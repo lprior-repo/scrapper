@@ -454,11 +454,11 @@ func TestEnvironmentDependentBehavior(t *testing.T) {
 		}
 		
 		// Test that development mode would trigger demo operations
-		if config.IsDevelopment() {
+		if checkIsDevelopment(*config) {
 			runDemoOperations(ctx, mockService)
 		}
 		
-		assert.True(t, config.IsDevelopment())
+		assert.True(t, checkIsDevelopment(*config))
 	})
 	
 	// Test non-development mode skips demo operations
@@ -468,8 +468,8 @@ func TestEnvironmentDependentBehavior(t *testing.T) {
 		}
 		
 		// Test that production mode would not trigger demo operations
-		assert.False(t, config.IsDevelopment())
-		assert.True(t, config.IsProduction())
+		assert.False(t, checkIsDevelopment(*config))
+		assert.True(t, checkIsProduction(*config))
 	})
 }
 

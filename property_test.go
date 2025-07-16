@@ -143,7 +143,7 @@ func TestConfigValidationProperties(t *testing.T) {
 			}
 
 			// Property: valid Neo4j config should always pass validation
-			err := config.Validate()
+			err := validateConfig(*config)
 			assert.NoError(t, err)
 		})
 	})
@@ -170,7 +170,7 @@ func TestConfigValidationProperties(t *testing.T) {
 			}
 
 			// Property: valid Neptune config should always pass validation
-			err := config.Validate()
+			err := validateConfig(*config)
 			assert.NoError(t, err)
 		})
 	})
@@ -186,7 +186,7 @@ func TestConfigValidationProperties(t *testing.T) {
 			}
 
 			// Property: empty provider should always fail validation
-			err := config.Validate()
+			err := validateConfig(*config)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "graph database provider is required")
 		})
@@ -208,7 +208,7 @@ func TestConfigValidationProperties(t *testing.T) {
 			}
 
 			// Property: unsupported provider should always fail validation
-			err := config.Validate()
+			err := validateConfig(*config)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "unsupported graph database provider")
 		})
@@ -225,8 +225,8 @@ func TestConfigEnvironmentProperties(t *testing.T) {
 			}
 
 			// Property: production environment should always return true for IsProduction
-			assert.True(t, config.IsProduction())
-			assert.False(t, config.IsDevelopment())
+			assert.True(t, checkIsProduction(*config))
+			assert.False(t, checkIsDevelopment(*config))
 		})
 	})
 
@@ -238,8 +238,8 @@ func TestConfigEnvironmentProperties(t *testing.T) {
 			}
 
 			// Property: development environment should always return true for IsDevelopment
-			assert.False(t, config.IsProduction())
-			assert.True(t, config.IsDevelopment())
+			assert.False(t, checkIsProduction(*config))
+			assert.True(t, checkIsDevelopment(*config))
 		})
 	})
 
@@ -256,8 +256,8 @@ func TestConfigEnvironmentProperties(t *testing.T) {
 			}
 
 			// Property: non-production/non-development should return false for both
-			assert.False(t, config.IsProduction())
-			assert.False(t, config.IsDevelopment())
+			assert.False(t, checkIsProduction(*config))
+			assert.False(t, checkIsDevelopment(*config))
 		})
 	})
 }

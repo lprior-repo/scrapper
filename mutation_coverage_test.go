@@ -191,14 +191,14 @@ func TestMutationSpecificPaths(t *testing.T) {
 	
 	// Test environment checks
 	config := &Config{Environment: "production"}
-	assert.True(t, config.IsProduction())
-	assert.False(t, config.IsDevelopment())
+	assert.True(t, checkIsProduction(*config))
+	assert.False(t, checkIsDevelopment(*config))
 	
 	config = &Config{Environment: "development"}
-	assert.False(t, config.IsProduction())
-	assert.True(t, config.IsDevelopment())
+	assert.False(t, checkIsProduction(*config))
+	assert.True(t, checkIsDevelopment(*config))
 	
 	config = &Config{Environment: "staging"}
-	assert.False(t, config.IsProduction())
-	assert.False(t, config.IsDevelopment())
+	assert.False(t, checkIsProduction(*config))
+	assert.False(t, checkIsDevelopment(*config))
 }

@@ -347,7 +347,7 @@ func TestBranchConditionCoverage(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.environment, func(t *testing.T) {
 				config := &Config{Environment: tt.environment}
-				result := config.IsProduction()
+				result := checkIsProduction(*config)
 				assert.Equal(t, tt.expected, result, "IsProduction() for environment %q", tt.environment)
 			})
 		}
@@ -373,7 +373,7 @@ func TestBranchConditionCoverage(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.environment, func(t *testing.T) {
 				config := &Config{Environment: tt.environment}
-				result := config.IsDevelopment()
+				result := checkIsDevelopment(*config)
 				assert.Equal(t, tt.expected, result, "IsDevelopment() for environment %q", tt.environment)
 			})
 		}
@@ -437,7 +437,7 @@ func TestErrorHandlingPaths(t *testing.T) {
 					},
 				}
 				
-				err := config.validateGraphDBProvider()
+				err := validateGraphDBProvider(*config)
 				
 				if tt.shouldError {
 					require.Error(t, err)

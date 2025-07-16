@@ -38,61 +38,59 @@ func runOverseer(ctx context.Context) error {
 		return err
 	}
 
-	graphService, err := setupGraphService(ctx, config)
+	graphConn, err := setupGraphConnection(ctx, config)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if err := graphService.Close(ctx); err != nil {
-			log.Printf("Failed to close graph service: %v", err)
+		if err := closeConnection(ctx, graphConn); err != nil {
+			log.Printf("Failed to close graph connection: %v", err)
 		}
 	}()
 
-	if config.IsDevelopment() {
-		runDemoOperations(ctx, graphService)
+	if checkIsDevelopment(config) {
+		runDemoOperations(ctx, graphConn)
 	}
 
 	return waitForShutdown(ctx)
 }
 
 // initializeConfiguration loads and validates configuration
-func initializeConfiguration() (*Config, error) {
+func initializeConfiguration() (Config, error) {
 	config, err := LoadConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load configuration: %w", err)
+		return Config{}, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+	if err := validateConfig(*config); err != nil {
+		return Config{}, fmt.Errorf("invalid configuration: %w", err)
 	}
 
 	log.Printf("Using %s graph database", config.GraphDB.Provider)
-	return config, nil
+	return *config, nil
 }
 
-// setupGraphService initializes and connects to graph service
-func setupGraphService(ctx context.Context, config *Config) (GraphService, error) {
-	graphService, err := NewGraphService(config.GraphDB)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create graph service: %w", err)
-	}
-
+// setupGraphConnection initializes and connects to graph database
+func setupGraphConnection(ctx context.Context, config Config) (GraphConnection, error) {
 	log.Println("Connecting to graph database...")
-	if err := graphService.Connect(ctx); err != nil {
-		return nil, fmt.Errorf("failed to connect to graph database: %w", err)
+	
+	graphConn, err := createConnection(ctx, config)
+	if err != nil {
+		return GraphConnection{}, fmt.Errorf("failed to create graph connection: %w", err)
 	}
 
-	if err := graphService.Health(ctx); err != nil {
-		return nil, fmt.Errorf("graph database health check failed: %w", err)
+	if err := healthCheck(ctx, graphConn); err != nil {
+		_ = closeConnection(ctx, graphConn)
+		return GraphConnection{}, fmt.Errorf("graph database health check failed: %w", err)
 	}
 
 	log.Println("Graph database connection established successfully")
-	return graphService, nil
+	return graphConn, nil
 }
 
 // runDemoOperations runs demonstration operations in development mode
-func runDemoOperations(ctx context.Context, service GraphService) {
-	err := demonstrateGraphOperations(ctx, service)
+func runDemoOperations(ctx context.Context, conn GraphConnection) {
+	err := demonstrateGraphOperations(ctx, conn)
 	if err != nil {
 		log.Printf("Demo operations failed: %v", err)
 	}
@@ -106,40 +104,60 @@ func waitForShutdown(ctx context.Context) error {
 	return nil
 }
 
-func demonstrateGraphOperations(ctx context.Context, service GraphService) error {
-	node, err := service.CreateNode(ctx, "TestNode", map[string]interface{}{
-		"name":        "demo-node",
-		"created_at":  "2024-01-01T00:00:00Z",
-		"description": "A demonstration node created by overseer",
-	})
+func demonstrateGraphOperations(ctx context.Context, conn GraphConnection) error {
+	nodeRequest := GraphOperationRequest{
+		Operation: "create_node",
+		Label:     "TestNode",
+		Properties: map[string]interface{}{
+			"name":        "demo-node",
+			"created_at":  "2024-01-01T00:00:00Z",
+			"description": "A demonstration node created by overseer",
+		},
+	}
+
+	node, err := createNode(ctx, conn, nodeRequest)
 	if err != nil {
 		return fmt.Errorf("failed to create test node: %w", err)
 	}
 
 	log.Printf("Created test node: %+v", node)
 
-	node2, err := service.CreateNode(ctx, "TestNode", map[string]interface{}{
-		"name":        "demo-node-2",
-		"created_at":  "2024-01-01T00:00:00Z",
-		"description": "Another demonstration node",
-	})
+	nodeRequest2 := GraphOperationRequest{
+		Operation: "create_node",
+		Label:     "TestNode",
+		Properties: map[string]interface{}{
+			"name":        "demo-node-2",
+			"created_at":  "2024-01-01T00:00:00Z",
+			"description": "Another demonstration node",
+		},
+	}
+
+	node2, err := createNode(ctx, conn, nodeRequest2)
 	if err != nil {
 		return fmt.Errorf("failed to create second test node: %w", err)
 	}
 
 	log.Printf("Created second test node: %+v", node2)
 
-	rel, err := service.CreateRelationship(ctx, node.ID, node2.ID, "CONNECTED_TO", map[string]interface{}{
-		"relationship_type": "demo",
-		"created_at":        "2024-01-01T00:00:00Z",
-	})
+	relRequest := GraphOperationRequest{
+		Operation: "create_relationship",
+		FromID:    node.ID,
+		ToID:      node2.ID,
+		RelType:   "CONNECTED_TO",
+		Properties: map[string]interface{}{
+			"relationship_type": "demo",
+			"created_at":        "2024-01-01T00:00:00Z",
+		},
+	}
+
+	rel, err := createRelationship(ctx, conn, relRequest)
 	if err != nil {
 		return fmt.Errorf("failed to create relationship: %w", err)
 	}
 
 	log.Printf("Created relationship: %+v", rel)
 
-	results, err := service.ExecuteReadQuery(ctx, "MATCH (n:TestNode) RETURN n.name as name, n.description as description", nil)
+	results, err := executeCustomReadQuery(ctx, conn, "MATCH (n:TestNode) RETURN n.name as name, n.description as description", nil)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}

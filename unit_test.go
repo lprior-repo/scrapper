@@ -281,7 +281,7 @@ func TestConfigValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := tt.config.Validate()
+			err := validateConfig(*tt.config)
 
 			if tt.shouldErr {
 				require.Error(t, err)
@@ -334,8 +334,8 @@ func TestConfigEnvironmentChecks(t *testing.T) {
 				Environment: tt.environment,
 			}
 
-			assert.Equal(t, tt.expectedIsProduction, config.IsProduction())
-			assert.Equal(t, tt.expectedIsDevelopment, config.IsDevelopment())
+			assert.Equal(t, tt.expectedIsProduction, checkIsProduction(*config))
+			assert.Equal(t, tt.expectedIsDevelopment, checkIsDevelopment(*config))
 		})
 	}
 }

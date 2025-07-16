@@ -414,7 +414,7 @@ func TestValidateGraphDBProvider(t *testing.T) {
 			},
 		}
 		
-		err := config.validateGraphDBProvider()
+		err := validateGraphDBProvider(*config)
 		assert.NoError(t, err)
 	})
 	
@@ -433,7 +433,7 @@ func TestValidateGraphDBProvider(t *testing.T) {
 			},
 		}
 		
-		err := config.validateGraphDBProvider()
+		err := validateGraphDBProvider(*config)
 		assert.NoError(t, err)
 	})
 	
@@ -445,7 +445,7 @@ func TestValidateGraphDBProvider(t *testing.T) {
 			},
 		}
 		
-		err := config.validateGraphDBProvider()
+		err := validateGraphDBProvider(*config)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported graph database provider")
 	})

@@ -33,6 +33,9 @@ func LoadConfig() (*Config, error) {
 
 // applyEnvironmentOverrides applies environment variable overrides to config
 func applyEnvironmentOverrides(config *Config) {
+	if config == nil {
+		panic("Config cannot be nil")
+	}
 	if provider := os.Getenv("GRAPH_DB_PROVIDER"); provider != "" {
 		config.GraphDB.Provider = provider
 	}
@@ -43,6 +46,9 @@ func applyEnvironmentOverrides(config *Config) {
 
 // applyNeo4jOverrides applies Neo4j environment variable overrides
 func applyNeo4jOverrides(config *Config) {
+	if config == nil {
+		panic("Config cannot be nil")
+	}
 	if uri := os.Getenv("NEO4J_URI"); uri != "" {
 		config.GraphDB.Neo4j.URI = uri
 	}
@@ -56,6 +62,9 @@ func applyNeo4jOverrides(config *Config) {
 
 // applyNeptuneOverrides applies Neptune environment variable overrides
 func applyNeptuneOverrides(config *Config) {
+	if config == nil {
+		panic("Config cannot be nil")
+	}
 	if endpoint := os.Getenv("NEPTUNE_ENDPOINT"); endpoint != "" {
 		config.GraphDB.Neptune.Endpoint = endpoint
 	}
@@ -66,6 +75,9 @@ func applyNeptuneOverrides(config *Config) {
 
 // LoadConfigFromFile loads configuration from a JSON file
 func LoadConfigFromFile(filename string) (*Config, error) {
+	if filename == "" {
+		panic("Filename cannot be empty")
+	}
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -81,6 +93,12 @@ func LoadConfigFromFile(filename string) (*Config, error) {
 
 // SaveConfigToFile saves configuration to a JSON file
 func SaveConfigToFile(config *Config, filename string) error {
+	if config == nil {
+		panic("Config cannot be nil")
+	}
+	if filename == "" {
+		panic("Filename cannot be empty")
+	}
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
@@ -91,6 +109,17 @@ func SaveConfigToFile(config *Config, filename string) error {
 	}
 
 	return nil
+}
+
+// getEnvOrDefault retrieves environment variable or returns default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if key == "" {
+		panic("Environment variable key cannot be empty")
+	}
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // getDefaultGraphServiceConfig returns default graph service configuration
@@ -124,57 +153,67 @@ func getDefaultGraphServiceConfig() GraphServiceConfig {
 	}
 }
 
-// IsProduction checks if the application is running in production
-func (c *Config) IsProduction() bool {
-	return c.Environment == envProduction
+// checkIsProduction checks if the application is running in production
+func checkIsProduction(config Config) bool {
+	if config.Environment == "" {
+		panic("Config environment cannot be empty")
+	}
+	return config.Environment == envProduction
 }
 
-// IsDevelopment checks if the application is running in development
-func (c *Config) IsDevelopment() bool {
-	return c.Environment == "development"
+// checkIsDevelopment checks if the application is running in development
+func checkIsDevelopment(config Config) bool {
+	if config.Environment == "" {
+		panic("Config environment cannot be empty")
+	}
+	return config.Environment == "development"
 }
 
-// Validate validates the configuration
-func (c *Config) Validate() error {
-	if c.GraphDB.Provider == "" {
+// validateConfig validates the configuration
+func validateConfig(config Config) error {
+	if config.GraphDB.Provider == "" {
 		return fmt.Errorf("graph database provider is required")
 	}
 
-	return c.validateGraphDBProvider()
+	return validateGraphDBProvider(config)
 }
 
 // validateGraphDBProvider validates the graph database provider configuration
-func (c *Config) validateGraphDBProvider() error {
-	switch c.GraphDB.Provider {
+func validateGraphDBProvider(config Config) error {
+	if config.GraphDB.Provider == "" {
+		panic("GraphDB provider cannot be empty")
+	}
+	
+	switch config.GraphDB.Provider {
 	case providerNeo4j:
-		return c.validateNeo4jConfig()
+		return validateNeo4jConfig(config)
 	case providerNeptune:
-		return c.validateNeptuneConfig()
+		return validateNeptuneConfig(config)
 	default:
-		return fmt.Errorf("unsupported graph database provider: %s", c.GraphDB.Provider)
+		return fmt.Errorf("unsupported graph database provider: %s", config.GraphDB.Provider)
 	}
 }
 
 // validateNeo4jConfig validates Neo4j configuration
-func (c *Config) validateNeo4jConfig() error {
-	if c.GraphDB.Neo4j.URI == "" {
+func validateNeo4jConfig(config Config) error {
+	if config.GraphDB.Neo4j.URI == "" {
 		return fmt.Errorf("Neo4j URI is required")
 	}
-	if c.GraphDB.Neo4j.Username == "" {
+	if config.GraphDB.Neo4j.Username == "" {
 		return fmt.Errorf("Neo4j username is required")
 	}
-	if c.GraphDB.Neo4j.Password == "" {
+	if config.GraphDB.Neo4j.Password == "" {
 		return fmt.Errorf("Neo4j password is required")
 	}
 	return nil
 }
 
 // validateNeptuneConfig validates Neptune configuration
-func (c *Config) validateNeptuneConfig() error {
-	if c.GraphDB.Neptune.Endpoint == "" {
+func validateNeptuneConfig(config Config) error {
+	if config.GraphDB.Neptune.Endpoint == "" {
 		return fmt.Errorf("Neptune endpoint is required")
 	}
-	if c.GraphDB.Neptune.Region == "" {
+	if config.GraphDB.Neptune.Region == "" {
 		return fmt.Errorf("Neptune region is required")
 	}
 	return nil
