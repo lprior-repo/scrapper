@@ -522,5 +522,5 @@ tasks:
       - ./pre-commit format
       - task: fix-all
       - git add .
-      - git commit -m "fix: auto-fix linting and formatting issues"
+      - git commit -m "fix{{":"}} auto-fix linting and formatting issues"
       - echo "✅ Fix commit completed!"

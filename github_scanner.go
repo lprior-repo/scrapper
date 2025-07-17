@@ -5,7 +5,6 @@ import (
 	"strconv"
 )
 
-
 // parseGitHubScanConfig parses configuration from environment variables with secure token handling
 func parseGitHubScanConfig() (GitHubScanConfig, error) {
 	return createSecureGitHubScanConfig()
@@ -29,8 +28,6 @@ func parseIntEnv(key string, defaultValue int) int {
 
 	return parsed
 }
-
-
 
 // getEnvOrDefault gets environment variable or returns default value
 func getEnvOrDefault(key, defaultValue string) string {

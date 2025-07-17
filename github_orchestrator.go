@@ -134,7 +134,6 @@ func generateScanSummary(data GitHubOrgData) ScanSummary {
 	}
 }
 
-
 // analyzeCodeownersCoverage analyzes CODEOWNERS coverage patterns
 func analyzeCodeownersCoverage(repos []GitHubRepo) map[string]int {
 	patternCounts := make(map[string]int)
@@ -176,4 +175,3 @@ func marshalOrgData(data GitHubOrgData) ([]byte, error) {
 	// This is a pure function that prepares data for writing
 	return json.MarshalIndent(data, "", "  ")
 }
-

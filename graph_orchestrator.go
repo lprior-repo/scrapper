@@ -209,6 +209,3 @@ func clearAll(ctx context.Context, conn GraphConnection) error {
 	_, err := executeQuery(ctx, conn, query, nil)
 	return err
 }
-
-
-

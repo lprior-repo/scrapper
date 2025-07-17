@@ -169,6 +169,29 @@ func validateDevelopmentEnvironment(config Config) bool {
 	return config.Environment == "development"
 }
 
+// checkIsProduction is an alias for validateProductionEnvironment (for backwards compatibility)
+func checkIsProduction(config Config) bool {
+	return validateProductionEnvironment(config)
+}
+
+// checkIsDevelopment is an alias for validateDevelopmentEnvironment (for backwards compatibility)
+func checkIsDevelopment(config Config) bool {
+	return validateDevelopmentEnvironment(config)
+}
+
+// getDefaultGraphServiceConfig is an alias for buildDefaultGraphServiceConfig with environment vars
+func getDefaultGraphServiceConfig() GraphServiceConfig {
+	envVars := map[string]string{
+		"ENVIRONMENT":      getEnvOrDefault("ENVIRONMENT", "development"),
+		"NEO4J_URI":        getEnvOrDefault("NEO4J_URI", ""),
+		"NEO4J_USERNAME":   getEnvOrDefault("NEO4J_USERNAME", ""),
+		"NEO4J_PASSWORD":   getEnvOrDefault("NEO4J_PASSWORD", ""),
+		"NEPTUNE_ENDPOINT": getEnvOrDefault("NEPTUNE_ENDPOINT", ""),
+		"NEPTUNE_REGION":   getEnvOrDefault("NEPTUNE_REGION", ""),
+	}
+	return buildDefaultGraphServiceConfig(envVars)
+}
+
 // validateConfig validates the configuration
 func validateConfig(config Config) error {
 	if config.GraphDB.Provider == "" {
@@ -244,11 +267,11 @@ func serializeConfigToJSON(config *Config) ([]byte, error) {
 func readEnvironmentVariables() map[string]string {
 	envVars := make(map[string]string)
 	envKeys := []string{
-		"ENVIRONMENT", "GRAPH_DB_PROVIDER", 
+		"ENVIRONMENT", "GRAPH_DB_PROVIDER",
 		"NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD",
 		"NEPTUNE_ENDPOINT", "NEPTUNE_REGION",
 	}
-	
+
 	for _, key := range envKeys {
 		if value := os.Getenv(key); value != "" {
 			envVars[key] = value

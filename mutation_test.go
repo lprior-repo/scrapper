@@ -58,7 +58,7 @@ func TestComprehensiveMutationTesting(t *testing.T) {
 	// Assert high mutation score - we demand excellence!
 	// Only enforce this if we actually found mutations to test
 	if result.TotalMutations > 0 {
-		assert.True(t, result.MutationScore >= 90.0,
+		assert.GreaterOrEqual(t, result.MutationScore, 90.0,
 			"Comprehensive mutation testing demands >= 90%% mutation score, got %.2f%%. "+
 				"This indicates potential gaps in test coverage that must be addressed.", result.MutationScore)
 
@@ -187,18 +187,18 @@ func generateComprehensiveReport(result MutationResult, duration time.Duration) 
 func writeHeader(report *strings.Builder, duration time.Duration) {
 	report.WriteString("🧬 COMPREHENSIVE MUTATION TESTING REPORT\n")
 	report.WriteString("========================================\n")
-	report.WriteString(fmt.Sprintf("Generated: %s\n", time.Now().Format("2006-01-02 15:04:05")))
-	report.WriteString(fmt.Sprintf("Total Duration: %v\n", duration))
+	fmt.Fprintf(report, "Generated: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(report, "Total Duration: %v\n", duration)
 	report.WriteString("\n")
 }
 
 func writeStatistics(report *strings.Builder, result MutationResult) {
 	report.WriteString("📊 OVERALL STATISTICS\n")
 	report.WriteString("--------------------\n")
-	report.WriteString(fmt.Sprintf("Total mutations tested: %d\n", result.TotalMutations))
-	report.WriteString(fmt.Sprintf("Mutations killed: %d\n", result.KilledMutations))
-	report.WriteString(fmt.Sprintf("Mutations survived: %d\n", result.SurvivedMutations))
-	report.WriteString(fmt.Sprintf("Overall mutation score: %.2f%%\n", result.MutationScore))
+	fmt.Fprintf(report, "Total mutations tested: %d\n", result.TotalMutations)
+	fmt.Fprintf(report, "Mutations killed: %d\n", result.KilledMutations)
+	fmt.Fprintf(report, "Mutations survived: %d\n", result.SurvivedMutations)
+	fmt.Fprintf(report, "Overall mutation score: %.2f%%\n", result.MutationScore)
 	report.WriteString("\n")
 }
 
@@ -242,12 +242,12 @@ func writeExecutionDetails(report *strings.Builder, result MutationResult) {
 	report.WriteString("📋 TEST EXECUTION DETAILS\n")
 	report.WriteString("-------------------------\n")
 	if result.Error != nil {
-		report.WriteString(fmt.Sprintf("❌ Execution failed: %v\n", result.Error))
+		fmt.Fprintf(report, "❌ Execution failed: %v\n", result.Error)
 	} else {
 		status := getExecutionStatus(result.MutationScore)
-		report.WriteString(fmt.Sprintf("%s Entire codebase: %.2f%% (%d/%d killed) - %v\n",
+		fmt.Fprintf(report, "%s Entire codebase: %.2f%% (%d/%d killed) - %v\n",
 			status, result.MutationScore, result.KilledMutations,
-			result.TotalMutations, result.Duration))
+			result.TotalMutations, result.Duration)
 	}
 	report.WriteString("\n")
 }
@@ -263,7 +263,7 @@ func writeRecommendations(report *strings.Builder, survivedMutations int) {
 	report.WriteString("💡 RECOMMENDATIONS\n")
 	report.WriteString("-----------------\n")
 	if survivedMutations > 0 {
-		report.WriteString(fmt.Sprintf("⚠️ %d mutations survived - investigate these areas:\n", survivedMutations))
+		fmt.Fprintf(report, "⚠️ %d mutations survived - investigate these areas:\n", survivedMutations)
 		report.WriteString("   1. Add more test cases for edge conditions\n")
 		report.WriteString("   2. Strengthen assertions in existing tests\n")
 		report.WriteString("   3. Consider if mutations represent equivalent behavior\n")

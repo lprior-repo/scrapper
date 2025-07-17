@@ -61,4 +61,3 @@ func getTestNeo4jConfig() Neo4jConfig {
 		Password: password,
 	}
 }
-
