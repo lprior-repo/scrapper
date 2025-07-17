@@ -20,78 +20,81 @@ type Config struct {
 	GraphDB     GraphServiceConfig `json:"graph_db"`
 }
 
-// LoadConfig loads configuration from environment and defaults
+// LoadConfig loads configuration from environment and defaults (Orchestrator)
 func LoadConfig() (*Config, error) {
-	config := &Config{
-		Environment: getEnvOrDefault("ENVIRONMENT", "development"),
-		GraphDB:     getDefaultGraphServiceConfig(),
-	}
-
-	applyEnvironmentOverrides(config)
-	return config, nil
+	envVars := readEnvironmentVariables()
+	return buildConfigFromEnvironment(envVars), nil
 }
 
-// applyEnvironmentOverrides applies environment variable overrides to config
-func applyEnvironmentOverrides(config *Config) {
+// buildConfigFromEnvironment builds configuration from environment variables (Pure Core)
+func buildConfigFromEnvironment(envVars map[string]string) *Config {
+	config := &Config{
+		Environment: getStringOrDefault(envVars, "ENVIRONMENT", "development"),
+		GraphDB:     buildDefaultGraphServiceConfig(envVars),
+	}
+
+	return applyEnvironmentOverrides(config, envVars)
+}
+
+// applyEnvironmentOverrides applies environment variable overrides to config (Pure Core)
+func applyEnvironmentOverrides(config *Config, envVars map[string]string) *Config {
 	if config == nil {
 		panic("Config cannot be nil")
 	}
-	if provider := os.Getenv("GRAPH_DB_PROVIDER"); provider != "" {
+	if provider := getStringOrDefault(envVars, "GRAPH_DB_PROVIDER", ""); provider != "" {
 		config.GraphDB.Provider = provider
 	}
 
-	applyNeo4jOverrides(config)
-	applyNeptuneOverrides(config)
+	config = applyNeo4jOverrides(config, envVars)
+	config = applyNeptuneOverrides(config, envVars)
+	return config
 }
 
-// applyNeo4jOverrides applies Neo4j environment variable overrides
-func applyNeo4jOverrides(config *Config) {
+// applyNeo4jOverrides applies Neo4j environment variable overrides (Pure Core)
+func applyNeo4jOverrides(config *Config, envVars map[string]string) *Config {
 	if config == nil {
 		panic("Config cannot be nil")
 	}
-	if uri := os.Getenv("NEO4J_URI"); uri != "" {
+	if uri := getStringOrDefault(envVars, "NEO4J_URI", ""); uri != "" {
 		config.GraphDB.Neo4j.URI = uri
 	}
-	if username := os.Getenv("NEO4J_USERNAME"); username != "" {
+	if username := getStringOrDefault(envVars, "NEO4J_USERNAME", ""); username != "" {
 		config.GraphDB.Neo4j.Username = username
 	}
-	if password := os.Getenv("NEO4J_PASSWORD"); password != "" {
+	if password := getStringOrDefault(envVars, "NEO4J_PASSWORD", ""); password != "" {
 		config.GraphDB.Neo4j.Password = password
 	}
+	return config
 }
 
-// applyNeptuneOverrides applies Neptune environment variable overrides
-func applyNeptuneOverrides(config *Config) {
+// applyNeptuneOverrides applies Neptune environment variable overrides (Pure Core)
+func applyNeptuneOverrides(config *Config, envVars map[string]string) *Config {
 	if config == nil {
 		panic("Config cannot be nil")
 	}
-	if endpoint := os.Getenv("NEPTUNE_ENDPOINT"); endpoint != "" {
+	if endpoint := getStringOrDefault(envVars, "NEPTUNE_ENDPOINT", ""); endpoint != "" {
 		config.GraphDB.Neptune.Endpoint = endpoint
 	}
-	if region := os.Getenv("NEPTUNE_REGION"); region != "" {
+	if region := getStringOrDefault(envVars, "NEPTUNE_REGION", ""); region != "" {
 		config.GraphDB.Neptune.Region = region
 	}
+	return config
 }
 
-// LoadConfigFromFile loads configuration from a JSON file
+// LoadConfigFromFile loads configuration from a JSON file (Orchestrator)
 func LoadConfigFromFile(filename string) (*Config, error) {
 	if filename == "" {
 		panic("Filename cannot be empty")
 	}
-	data, err := os.ReadFile(filename)
+	data, err := readConfigFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
-
-	return &config, nil
+	return buildConfigFromJSON(data)
 }
 
-// SaveConfigToFile saves configuration to a JSON file
+// SaveConfigToFile saves configuration to a JSON file (Orchestrator)
 func SaveConfigToFile(config *Config, filename string) error {
 	if config == nil {
 		panic("Config cannot be nil")
@@ -99,70 +102,67 @@ func SaveConfigToFile(config *Config, filename string) error {
 	if filename == "" {
 		panic("Filename cannot be empty")
 	}
-	data, err := json.MarshalIndent(config, "", "  ")
+	data, err := serializeConfigToJSON(config)
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+		return fmt.Errorf("failed to serialize config: %w", err)
 	}
 
-	if err := os.WriteFile(filename, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	return nil
+	return writeConfigFile(filename, data)
 }
 
-// getEnvOrDefault retrieves environment variable or returns default value
-func getEnvOrDefault(key, defaultValue string) string {
+// getStringOrDefault retrieves string from map or returns default value (Pure Core)
+func getStringOrDefault(envVars map[string]string, key, defaultValue string) string {
 	if key == "" {
 		panic("Environment variable key cannot be empty")
 	}
-	if value := os.Getenv(key); value != "" {
+	if value, exists := envVars[key]; exists && value != "" {
 		return value
 	}
 	return defaultValue
 }
 
-// getDefaultGraphServiceConfig returns default graph service configuration
-func getDefaultGraphServiceConfig() GraphServiceConfig {
-	environment := getEnvOrDefault("ENVIRONMENT", "development")
+// buildDefaultGraphServiceConfig returns default graph service configuration (Pure Core)
+func buildDefaultGraphServiceConfig(envVars map[string]string) GraphServiceConfig {
+	environment := getStringOrDefault(envVars, "ENVIRONMENT", "development")
 
-	if environment == envProduction {
-		return GraphServiceConfig{
-			Provider: providerNeptune,
-			Neptune: struct {
-				Endpoint string `json:"endpoint"`
-				Region   string `json:"region"`
-			}{
-				Endpoint: getEnvOrDefault("NEPTUNE_ENDPOINT", ""),
-				Region:   getEnvOrDefault("NEPTUNE_REGION", "us-east-1"),
-			},
-		}
-	}
-
-	return GraphServiceConfig{
-		Provider: providerNeo4j,
+	config := GraphServiceConfig{
 		Neo4j: struct {
 			URI      string `json:"uri"`
 			Username string `json:"username"`
 			Password string `json:"password"`
 		}{
-			URI:      getEnvOrDefault("NEO4J_URI", "bolt://localhost:7687"),
-			Username: getEnvOrDefault("NEO4J_USERNAME", defaultNeo4jUsername),
-			Password: getEnvOrDefault("NEO4J_PASSWORD", "password"),
+			URI:      getStringOrDefault(envVars, "NEO4J_URI", "bolt://localhost:7687"),
+			Username: getStringOrDefault(envVars, "NEO4J_USERNAME", defaultNeo4jUsername),
+			Password: getStringOrDefault(envVars, "NEO4J_PASSWORD", "password"),
+		},
+		Neptune: struct {
+			Endpoint string `json:"endpoint"`
+			Region   string `json:"region"`
+		}{
+			Endpoint: getStringOrDefault(envVars, "NEPTUNE_ENDPOINT", ""),
+			Region:   getStringOrDefault(envVars, "NEPTUNE_REGION", "us-east-1"),
 		},
 	}
+
+	if environment == envProduction {
+		config.Provider = providerNeptune
+	} else {
+		config.Provider = providerNeo4j
+	}
+
+	return config
 }
 
-// checkIsProduction checks if the application is running in production
-func checkIsProduction(config Config) bool {
+// validateProductionEnvironment checks if the application is running in production (Pure Core)
+func validateProductionEnvironment(config Config) bool {
 	if config.Environment == "" {
 		panic("Config environment cannot be empty")
 	}
 	return config.Environment == envProduction
 }
 
-// checkIsDevelopment checks if the application is running in development
-func checkIsDevelopment(config Config) bool {
+// validateDevelopmentEnvironment checks if the application is running in development (Pure Core)
+func validateDevelopmentEnvironment(config Config) bool {
 	if config.Environment == "" {
 		panic("Config environment cannot be empty")
 	}
@@ -183,7 +183,7 @@ func validateGraphDBProvider(config Config) error {
 	if config.GraphDB.Provider == "" {
 		panic("GraphDB provider cannot be empty")
 	}
-	
+
 	switch config.GraphDB.Provider {
 	case providerNeo4j:
 		return validateNeo4jConfig(config)
@@ -215,6 +215,61 @@ func validateNeptuneConfig(config Config) error {
 	}
 	if config.GraphDB.Neptune.Region == "" {
 		return fmt.Errorf("Neptune region is required")
+	}
+	return nil
+}
+
+// buildConfigFromJSON builds configuration from JSON data (Pure Core)
+func buildConfigFromJSON(data []byte) (*Config, error) {
+	var config Config
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+	return &config, nil
+}
+
+// serializeConfigToJSON serializes configuration to JSON (Pure Core)
+func serializeConfigToJSON(config *Config) ([]byte, error) {
+	if config == nil {
+		panic("Config cannot be nil")
+	}
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
+	}
+	return data, nil
+}
+
+// readEnvironmentVariables reads environment variables (Impure Shell)
+func readEnvironmentVariables() map[string]string {
+	envVars := make(map[string]string)
+	envKeys := []string{
+		"ENVIRONMENT", "GRAPH_DB_PROVIDER", 
+		"NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD",
+		"NEPTUNE_ENDPOINT", "NEPTUNE_REGION",
+	}
+	
+	for _, key := range envKeys {
+		if value := os.Getenv(key); value != "" {
+			envVars[key] = value
+		}
+	}
+	return envVars
+}
+
+// readConfigFile reads configuration file (Impure Shell)
+func readConfigFile(filename string) ([]byte, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+	return data, nil
+}
+
+// writeConfigFile writes configuration file (Impure Shell)
+func writeConfigFile(filename string, data []byte) error {
+	if err := os.WriteFile(filename, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
 	}
 	return nil
 }

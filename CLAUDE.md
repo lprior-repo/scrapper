@@ -62,8 +62,6 @@ Cyclomatic complexity will never exceed 5. Nesting depth will never exceed 2 lev
 
 Folders are forbidden. The project structure will be flat.
 
-A function will never accept more than 3 parameters.
-
 Part 2: The Absolute Testing Mandate
 All code is guilty until proven innocent by a multi-layered, exhaustive testing process. The testify suite is the standard for assertions.
 

@@ -103,7 +103,7 @@ func collectResults(ctx context.Context, result neo4j.ResultWithContext) ([]map[
 	for i, record := range records {
 		results[i] = record.AsMap()
 	}
-	
+
 	return results, nil
 }
 
@@ -150,7 +150,7 @@ func executeBatchOperations(ctx context.Context, conn GraphConnection, operation
 		}
 		return nil, nil
 	})
-	
+
 	return err
 }
 
@@ -182,7 +182,7 @@ func verifyConnection(ctx context.Context, conn GraphConnection) error {
 	if conn.Driver == nil {
 		return fmt.Errorf("driver not initialized")
 	}
-	
+
 	return verifyNeo4jConnection(ctx, conn.Driver)
 }
 

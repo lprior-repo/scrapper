@@ -5,73 +5,64 @@ import (
 	"fmt"
 )
 
-// createNode creates a new node using Pure Core + Impure Shell pattern
+// createNode creates a new node in the graph database
 func createNode(ctx context.Context, conn GraphConnection, request GraphOperationRequest) (*Node, error) {
 	if err := validateNodeCreation(request); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, err
 	}
 
 	query := buildCreateNodeQuery(request)
 	params := prepareNodeParameters(request)
 
-	results, err := executeWriteQuery(ctx, conn, query, params)
+	results, err := executeQuery(ctx, conn, query, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create node: %w", err)
 	}
 
-	if len(results) != 1 {
-		return nil, fmt.Errorf("unexpected number of results: %d", len(results))
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no results returned from create node query")
 	}
 
 	return processNodeResult(results[0])
 }
 
-// getNode retrieves a node using Pure Core + Impure Shell pattern
+// getNode retrieves a node from the graph database
 func getNode(ctx context.Context, conn GraphConnection, nodeID string) (*Node, error) {
-	request := GraphOperationRequest{
-		Operation: "get_node",
-		NodeID:    nodeID,
-	}
-
+	request := GraphOperationRequest{NodeID: nodeID}
 	if err := validateNodeRetrieval(request); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, err
 	}
 
 	query := buildGetNodeQuery()
 	params := prepareNodeParameters(request)
 
-	results, err := executeReadQuery(ctx, conn, query, params)
+	results, err := executeQuery(ctx, conn, query, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get node: %w", err)
 	}
 
-	if len(results) != 1 {
+	if len(results) == 0 {
 		return nil, fmt.Errorf("node not found")
 	}
 
 	return processNodeResult(results[0])
 }
 
-// updateNode updates a node using Pure Core + Impure Shell pattern
+// updateNode updates a node in the graph database
 func updateNode(ctx context.Context, conn GraphConnection, nodeID string, properties map[string]interface{}) error {
 	request := GraphOperationRequest{
-		Operation:  "update_node",
 		NodeID:     nodeID,
 		Properties: properties,
 	}
 
 	if err := validateNodeRetrieval(request); err != nil {
-		return fmt.Errorf("validation failed: %w", err)
-	}
-
-	if properties == nil {
-		return fmt.Errorf("properties cannot be nil")
+		return err
 	}
 
 	query := buildUpdateNodeQuery()
 	params := prepareNodeParameters(request)
 
-	_, err := executeWriteQuery(ctx, conn, query, params)
+	_, err := executeQuery(ctx, conn, query, params)
 	if err != nil {
 		return fmt.Errorf("failed to update node: %w", err)
 	}
@@ -79,21 +70,17 @@ func updateNode(ctx context.Context, conn GraphConnection, nodeID string, proper
 	return nil
 }
 
-// deleteNode deletes a node using Pure Core + Impure Shell pattern
+// deleteNode deletes a node from the graph database
 func deleteNode(ctx context.Context, conn GraphConnection, nodeID string) error {
-	request := GraphOperationRequest{
-		Operation: "delete_node",
-		NodeID:    nodeID,
-	}
-
+	request := GraphOperationRequest{NodeID: nodeID}
 	if err := validateNodeRetrieval(request); err != nil {
-		return fmt.Errorf("validation failed: %w", err)
+		return err
 	}
 
 	query := buildDeleteNodeQuery()
 	params := prepareNodeParameters(request)
 
-	_, err := executeWriteQuery(ctx, conn, query, params)
+	_, err := executeQuery(ctx, conn, query, params)
 	if err != nil {
 		return fmt.Errorf("failed to delete node: %w", err)
 	}
@@ -101,68 +88,96 @@ func deleteNode(ctx context.Context, conn GraphConnection, nodeID string) error 
 	return nil
 }
 
-// createRelationship creates a relationship using Pure Core + Impure Shell pattern
+// createRelationship creates a relationship between two nodes
 func createRelationship(ctx context.Context, conn GraphConnection, request GraphOperationRequest) (*Relationship, error) {
 	if err := validateRelationshipCreation(request); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, err
+	}
+
+	if err := validateRelationshipBusinessRules(request); err != nil {
+		return nil, err
 	}
 
 	query := buildCreateRelationshipQuery(request)
 	params := prepareRelationshipParameters(request)
 
-	results, err := executeWriteQuery(ctx, conn, query, params)
+	results, err := executeQuery(ctx, conn, query, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create relationship: %w", err)
 	}
 
-	if len(results) != 1 {
-		return nil, fmt.Errorf("unexpected number of results: %d", len(results))
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no results returned from create relationship query")
 	}
 
 	return processRelationshipResult(results[0])
 }
 
-// getRelationship retrieves a relationship using Pure Core + Impure Shell pattern
+// getRelationship retrieves a relationship from the graph database
 func getRelationship(ctx context.Context, conn GraphConnection, relationshipID string) (*Relationship, error) {
-	request := GraphOperationRequest{
-		Operation: "get_relationship",
-		NodeID:    relationshipID, // Reuse NodeID field for relationship ID
-	}
-
-	if err := validateNodeRetrieval(request); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
+	request := GraphOperationRequest{NodeID: relationshipID}
+	if err := validateRelationshipUpdate(request); err != nil {
+		return nil, err
 	}
 
 	query := buildGetRelationshipQuery()
 	params := prepareRelationshipParameters(request)
 
-	results, err := executeReadQuery(ctx, conn, query, params)
+	results, err := executeQuery(ctx, conn, query, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get relationship: %w", err)
 	}
 
-	if len(results) != 1 {
+	if len(results) == 0 {
 		return nil, fmt.Errorf("relationship not found")
 	}
 
 	return processRelationshipResult(results[0])
 }
 
-// deleteRelationship deletes a relationship using Pure Core + Impure Shell pattern
-func deleteRelationship(ctx context.Context, conn GraphConnection, relationshipID string) error {
-	request := GraphOperationRequest{
-		Operation: "delete_relationship",
-		NodeID:    relationshipID, // Reuse NodeID field for relationship ID
+// RelationshipUpdateRequest holds data for updating a relationship
+type RelationshipUpdateRequest struct {
+	ID         string                 `json:"id"`
+	Properties map[string]interface{} `json:"properties"`
+}
+
+// updateRelationship updates a relationship in the graph database
+func updateRelationship(ctx context.Context, conn GraphConnection, request RelationshipUpdateRequest) (*Relationship, error) {
+	operationRequest := GraphOperationRequest{
+		NodeID:     request.ID,
+		Properties: request.Properties,
 	}
 
-	if err := validateNodeRetrieval(request); err != nil {
-		return fmt.Errorf("validation failed: %w", err)
+	if err := validateRelationshipUpdate(operationRequest); err != nil {
+		return nil, err
+	}
+
+	query := buildUpdateRelationshipQuery()
+	params := prepareRelationshipParameters(operationRequest)
+
+	results, err := executeQuery(ctx, conn, query, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update relationship: %w", err)
+	}
+
+	if len(results) == 0 {
+		return nil, fmt.Errorf("relationship not found")
+	}
+
+	return processRelationshipResult(results[0])
+}
+
+// deleteRelationship deletes a relationship from the graph database
+func deleteRelationship(ctx context.Context, conn GraphConnection, relationshipID string) error {
+	request := GraphOperationRequest{NodeID: relationshipID}
+	if err := validateRelationshipUpdate(request); err != nil {
+		return err
 	}
 
 	query := buildDeleteRelationshipQuery()
 	params := prepareRelationshipParameters(request)
 
-	_, err := executeWriteQuery(ctx, conn, query, params)
+	_, err := executeQuery(ctx, conn, query, params)
 	if err != nil {
 		return fmt.Errorf("failed to delete relationship: %w", err)
 	}
@@ -170,63 +185,30 @@ func deleteRelationship(ctx context.Context, conn GraphConnection, relationshipI
 	return nil
 }
 
-// executeCustomQuery executes a custom query using Pure Core + Impure Shell pattern
+// executeCustomQuery executes a custom Cypher query
 func executeCustomQuery(ctx context.Context, conn GraphConnection, query string, params map[string]interface{}) ([]map[string]interface{}, error) {
 	if query == "" {
-		panic("Query cannot be empty")
-	}
-	if params == nil {
-		params = make(map[string]interface{})
+		return nil, fmt.Errorf("query cannot be empty")
 	}
 
 	return executeQuery(ctx, conn, query, params)
 }
 
-// executeCustomReadQuery executes a custom read query using Pure Core + Impure Shell pattern
-func executeCustomReadQuery(ctx context.Context, conn GraphConnection, query string, params map[string]interface{}) ([]map[string]interface{}, error) {
-	if query == "" {
-		panic("Query cannot be empty")
-	}
-	if params == nil {
-		params = make(map[string]interface{})
-	}
-
-	return executeReadQuery(ctx, conn, query, params)
-}
-
-// executeCustomWriteQuery executes a custom write query using Pure Core + Impure Shell pattern
+// executeCustomWriteQuery executes a custom write Cypher query
 func executeCustomWriteQuery(ctx context.Context, conn GraphConnection, query string, params map[string]interface{}) ([]map[string]interface{}, error) {
 	if query == "" {
-		panic("Query cannot be empty")
-	}
-	if params == nil {
-		params = make(map[string]interface{})
+		return nil, fmt.Errorf("query cannot be empty")
 	}
 
 	return executeWriteQuery(ctx, conn, query, params)
 }
 
-// executeBatch executes batch operations using Pure Core + Impure Shell pattern
-func executeBatch(ctx context.Context, conn GraphConnection, operations []BatchOperation) error {
-	if len(operations) == 0 {
-		return fmt.Errorf("no operations provided")
-	}
-
-	for _, op := range operations {
-		if op.Query == "" {
-			panic("Operation query cannot be empty")
-		}
-	}
-
-	return executeBatchOperations(ctx, conn, operations)
-}
-
-// clearAll clears all data using Pure Core + Impure Shell pattern
+// clearAll clears all data from the graph database
 func clearAll(ctx context.Context, conn GraphConnection) error {
-	return clearAllData(ctx, conn)
+	query := "MATCH (n) DETACH DELETE n"
+	_, err := executeQuery(ctx, conn, query, nil)
+	return err
 }
 
-// healthCheck checks connection health using Pure Core + Impure Shell pattern
-func healthCheck(ctx context.Context, conn GraphConnection) error {
-	return verifyConnection(ctx, conn)
-}
+
+

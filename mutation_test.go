@@ -43,14 +43,14 @@ func TestComprehensiveMutationTesting(t *testing.T) {
 	// Run comprehensive mutation testing on entire codebase
 	fmt.Println("🔬 Running mutation testing on ENTIRE codebase...")
 	result := runComprehensiveMutationTest(t)
-	
+
 	overallDuration := time.Since(overallStartTime)
 
 	// Generate comprehensive report
 	report := generateComprehensiveReport(result, overallDuration)
-	
+
 	fmt.Println(report)
-	
+
 	// Save report to file
 	err = os.WriteFile("comprehensive_mutation_report.txt", []byte(report), 0644)
 	require.NoError(t, err, "Should be able to save comprehensive mutation report")
@@ -58,9 +58,9 @@ func TestComprehensiveMutationTesting(t *testing.T) {
 	// Assert high mutation score - we demand excellence!
 	// Only enforce this if we actually found mutations to test
 	if result.TotalMutations > 0 {
-		assert.True(t, result.MutationScore >= 90.0, 
+		assert.True(t, result.MutationScore >= 90.0,
 			"Comprehensive mutation testing demands >= 90%% mutation score, got %.2f%%. "+
-			"This indicates potential gaps in test coverage that must be addressed.", result.MutationScore)
+				"This indicates potential gaps in test coverage that must be addressed.", result.MutationScore)
 
 		// Fail if any mutations survived - we want to catch ALL bugs
 		if result.SurvivedMutations > 0 {
@@ -75,36 +75,35 @@ func TestComprehensiveMutationTesting(t *testing.T) {
 	fmt.Printf("📊 Final Score: %.2f%% (%d/%d mutations killed)\n", result.MutationScore, result.KilledMutations, result.TotalMutations)
 }
 
-
 // runComprehensiveMutationTest runs comprehensive mutation testing on entire codebase
 func runComprehensiveMutationTest(t *testing.T) MutationResult {
 	t.Helper()
-	
+
 	startTime := time.Now()
-	
+
 	result := MutationResult{
 		Duration: 0,
 	}
-	
+
 	// Create context with generous timeout for comprehensive testing
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
-	
+
 	// Build go-mutesting command with maximum stringency on entire codebase
 	args := []string{
-		"--verbose",                           // Verbose output for debugging
-		"--do-not-remove-tmp-folder",         // Keep temp files for analysis
-		"--exec-timeout=300",                 // 5 minutes per test execution
-		".",                                  // Test entire current directory
+		"--verbose",                  // Verbose output for debugging
+		"--do-not-remove-tmp-folder", // Keep temp files for analysis
+		"--exec-timeout=300",         // 5 minutes per test execution
+		".",                          // Test entire current directory
 		"--exec=go test -v -timeout=300s -skip TestComprehensiveMutationTesting", // Skip self to avoid recursion
 	}
-	
+
 	fmt.Printf("🔬 Running: go-mutesting %s\n", strings.Join(args, " "))
-	
+
 	// Execute go-mutesting
 	cmd := exec.CommandContext(ctx, "go-mutesting", args...)
 	cmd.Dir = "."
-	
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		// Check if it's a timeout
@@ -116,23 +115,23 @@ func runComprehensiveMutationTest(t *testing.T) MutationResult {
 		result.Duration = time.Since(startTime)
 		return result
 	}
-	
+
 	// Log the output for debugging
 	if len(output) > 0 {
 		fmt.Printf("🔬 Mutation testing output:\n%s\n", string(output))
 	}
-	
+
 	// Parse results
 	counts := parseMutationOutput(string(output))
 	result.TotalMutations = counts.Total
 	result.KilledMutations = counts.Killed
 	result.SurvivedMutations = counts.Survived
-	
+
 	// Calculate mutation score
 	if result.TotalMutations > 0 {
 		result.MutationScore = float64(result.KilledMutations) / float64(result.TotalMutations) * 100
 	}
-	
+
 	result.Duration = time.Since(startTime)
 	return result
 }
@@ -147,7 +146,7 @@ type MutationCounts struct {
 // parseMutationOutput parses the output from go-mutesting
 func parseMutationOutput(output string) MutationCounts {
 	lines := strings.Split(output, "\n")
-	
+
 	var killed, survived int
 	for _, line := range lines {
 		if isMutationResult(line) {
@@ -158,7 +157,7 @@ func parseMutationOutput(output string) MutationCounts {
 			}
 		}
 	}
-	
+
 	return MutationCounts{
 		Total:    killed + survived,
 		Killed:   killed,
@@ -173,7 +172,7 @@ func isMutationResult(line string) bool {
 // generateComprehensiveReport generates a comprehensive mutation testing report
 func generateComprehensiveReport(result MutationResult, duration time.Duration) string {
 	var report strings.Builder
-	
+
 	writeHeader(&report, duration)
 	writeStatistics(&report, result)
 	writeQualityAssessment(&report, result.MutationScore)
@@ -181,7 +180,7 @@ func generateComprehensiveReport(result MutationResult, duration time.Duration) 
 	writeExecutionDetails(&report, result)
 	writeRecommendations(&report, result.SurvivedMutations)
 	writeExplanation(&report)
-	
+
 	return report.String()
 }
 
@@ -206,7 +205,7 @@ func writeStatistics(report *strings.Builder, result MutationResult) {
 func writeQualityAssessment(report *strings.Builder, score float64) {
 	report.WriteString("🎯 QUALITY ASSESSMENT\n")
 	report.WriteString("--------------------\n")
-	
+
 	assessment := getQualityAssessment(score)
 	report.WriteString(assessment)
 	report.WriteString("\n")
@@ -246,8 +245,8 @@ func writeExecutionDetails(report *strings.Builder, result MutationResult) {
 		report.WriteString(fmt.Sprintf("❌ Execution failed: %v\n", result.Error))
 	} else {
 		status := getExecutionStatus(result.MutationScore)
-		report.WriteString(fmt.Sprintf("%s Entire codebase: %.2f%% (%d/%d killed) - %v\n", 
-			status, result.MutationScore, result.KilledMutations, 
+		report.WriteString(fmt.Sprintf("%s Entire codebase: %.2f%% (%d/%d killed) - %v\n",
+			status, result.MutationScore, result.KilledMutations,
 			result.TotalMutations, result.Duration))
 	}
 	report.WriteString("\n")
@@ -290,41 +289,41 @@ func writeExplanation(report *strings.Builder) {
 // ensureNeo4jReady ensures Neo4j is ready for testing
 func ensureNeo4jReady(t *testing.T) error {
 	t.Helper()
-	
+
 	// Start Neo4j
 	cmd := exec.Command("docker", "compose", "up", "-d", "neo4j")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to start Neo4j: %w", err)
 	}
-	
+
 	// Wait for Neo4j to be ready
 	maxAttempts := 30
 	for i := 0; i < maxAttempts; i++ {
-		cmd := exec.Command("docker", "compose", "exec", "neo4j", 
+		cmd := exec.Command("docker", "compose", "exec", "neo4j",
 			"cypher-shell", "-u", "neo4j", "-p", "password", "RETURN 1")
 		if err := cmd.Run(); err == nil {
 			return nil
 		}
 		time.Sleep(5 * time.Second)
 	}
-	
+
 	return fmt.Errorf("Neo4j not ready after %d attempts", maxAttempts)
 }
 
 // TestMutationTestingConfiguration tests the mutation testing configuration
 func TestMutationTestingConfiguration(t *testing.T) {
 	t.Parallel()
-	
+
 	// Test that the mutation testing parameters are reasonable
 	timeout := 30 * time.Minute
 	assert.Positive(t, timeout, "Mutation testing timeout should be positive")
 	assert.LessOrEqual(t, timeout, 60*time.Minute, "Mutation testing timeout should be reasonable")
-	
+
 	// Test parsing logic
 	sampleOutput := `PASS 1 with checksum abc123
 FAIL 2 with checksum def456
 PASS 3 with checksum ghi789`
-	
+
 	counts := parseMutationOutput(sampleOutput)
 	assert.Equal(t, 3, counts.Total, "Should parse total mutations correctly")
 	assert.Equal(t, 1, counts.Killed, "Should parse killed mutations correctly")

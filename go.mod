@@ -3,7 +3,9 @@ module overseer
 go 1.24.4
 
 require (
+	github.com/gorilla/mux v1.8.1
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.1
+	github.com/rs/cors v1.11.1
 	github.com/samber/lo v1.51.0
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
 	github.com/stretchr/testify v1.10.0

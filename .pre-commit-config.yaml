@@ -1,0 +1,60 @@
+repos:
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: Go Format
+        entry: go fmt
+        language: system
+        files: \.go$
+        pass_filenames: false
+        args: [./...]
+      
+      - id: go-vet
+        name: Go Vet
+        entry: go vet
+        language: system
+        files: \.go$
+        pass_filenames: false
+        args: [./...]
+      
+      - id: go-test
+        name: Go Test
+        entry: go test
+        language: system
+        files: \.go$
+        pass_filenames: false
+        args: [./..., -short]
+      
+      - id: go-mod-tidy
+        name: Go Mod Tidy
+        entry: go mod tidy
+        language: system
+        files: go\.(mod|sum)$
+        pass_filenames: false
+      
+      - id: mutation-testing
+        name: Mutation Testing
+        entry: bash
+        language: system
+        files: \.go$
+        pass_filenames: false
+        args: [-c, "go test -tags=mutation ./..."]
+        stages: [manual]
+      
+      - id: coverage-check
+        name: Coverage Check
+        entry: bash
+        language: system
+        files: \.go$
+        pass_filenames: false
+        args: [-c, "go test -cover ./... | grep -E 'coverage: [0-9]+\\.[0-9]+%' | awk '{print $2}' | sed 's/%//' | awk '{if ($1 < 90) exit 1}'"]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files

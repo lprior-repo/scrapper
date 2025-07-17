@@ -9,7 +9,7 @@ import (
 
 func TestValidateBatchRequest(t *testing.T) {
 	t.Parallel()
-	
+
 	tests := []struct {
 		name      string
 		request   BatchRequest
@@ -66,13 +66,13 @@ func TestValidateBatchRequest(t *testing.T) {
 			errMsg:    "max teams cannot be negative",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			err := validateBatchRequest(tt.request)
-			
+
 			if tt.shouldErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -85,7 +85,7 @@ func TestValidateBatchRequest(t *testing.T) {
 
 func TestParseCodeownersContent(t *testing.T) {
 	t.Parallel()
-	
+
 	tests := []struct {
 		name     string
 		content  string
@@ -97,15 +97,15 @@ func TestParseCodeownersContent(t *testing.T) {
 			expected: []CodeownersEntry{},
 		},
 		{
-			name:     "single entry",
-			content:  "* @team1",
+			name:    "single entry",
+			content: "* @team1",
 			expected: []CodeownersEntry{
 				{Pattern: "*", Owners: []string{"@team1"}},
 			},
 		},
 		{
-			name:     "multiple entries",
-			content:  "* @team1\n*.js @frontend\n*.go @backend",
+			name:    "multiple entries",
+			content: "* @team1\n*.js @frontend\n*.go @backend",
 			expected: []CodeownersEntry{
 				{Pattern: "*", Owners: []string{"@team1"}},
 				{Pattern: "*.js", Owners: []string{"@frontend"}},
@@ -113,34 +113,34 @@ func TestParseCodeownersContent(t *testing.T) {
 			},
 		},
 		{
-			name:     "with comments",
-			content:  "# This is a comment\n* @team1\n# Another comment\n*.js @frontend",
+			name:    "with comments",
+			content: "# This is a comment\n* @team1\n# Another comment\n*.js @frontend",
 			expected: []CodeownersEntry{
 				{Pattern: "*", Owners: []string{"@team1"}},
 				{Pattern: "*.js", Owners: []string{"@frontend"}},
 			},
 		},
 		{
-			name:     "multiple owners",
-			content:  "* @team1 @team2 @user1",
+			name:    "multiple owners",
+			content: "* @team1 @team2 @user1",
 			expected: []CodeownersEntry{
 				{Pattern: "*", Owners: []string{"@team1", "@team2", "@user1"}},
 			},
 		},
 		{
-			name:     "empty lines",
-			content:  "* @team1\n\n*.js @frontend\n\n",
+			name:    "empty lines",
+			content: "* @team1\n\n*.js @frontend\n\n",
 			expected: []CodeownersEntry{
 				{Pattern: "*", Owners: []string{"@team1"}},
 				{Pattern: "*.js", Owners: []string{"@frontend"}},
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			result := parseCodeownersContent(tt.content)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -149,7 +149,7 @@ func TestParseCodeownersContent(t *testing.T) {
 
 func TestExtractUniqueOwners(t *testing.T) {
 	t.Parallel()
-	
+
 	tests := []struct {
 		name     string
 		entries  []CodeownersEntry
@@ -176,11 +176,11 @@ func TestExtractUniqueOwners(t *testing.T) {
 			expected: []string{"@team1", "@team2", "@frontend"},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			result := extractUniqueOwners(tt.entries)
 			assert.ElementsMatch(t, tt.expected, result)
 		})
@@ -189,7 +189,7 @@ func TestExtractUniqueOwners(t *testing.T) {
 
 func TestCalculateAPICallsNeeded(t *testing.T) {
 	t.Parallel()
-	
+
 	tests := []struct {
 		name      string
 		repoCount int
@@ -221,11 +221,11 @@ func TestCalculateAPICallsNeeded(t *testing.T) {
 			expected:  1,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			result := calculateAPICallsNeeded(tt.repoCount, tt.teamCount)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -234,15 +234,15 @@ func TestCalculateAPICallsNeeded(t *testing.T) {
 
 func TestBuildGraphQLOrgQuery(t *testing.T) {
 	t.Parallel()
-	
+
 	request := BatchRequest{
 		Organization: "testorg",
 		MaxRepos:     50,
 		MaxTeams:     25,
 	}
-	
+
 	query := buildGraphQLOrgQuery(request)
-	
+
 	// Verify query contains expected elements
 	assert.Contains(t, query, "organization(login: $org)")
 	assert.Contains(t, query, "repositories(first: 50")

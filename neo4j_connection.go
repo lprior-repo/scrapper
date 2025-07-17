@@ -8,7 +8,6 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-
 func createNeo4jDriver(config Neo4jConfig) (neo4j.DriverWithContext, error) {
 	auth := neo4j.BasicAuth(config.Username, config.Password, "")
 

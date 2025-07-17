@@ -49,7 +49,7 @@ type BatchRequest struct {
 	MaxTeams     int    `json:"max_teams"`
 }
 
-// validateBatchRequest validates batch request parameters
+// validateBatchRequest validates batch request parameters (Pure Core)
 func validateBatchRequest(request BatchRequest) error {
 	if request.Organization == "" {
 		return fmt.Errorf("organization name is required")
@@ -66,22 +66,22 @@ func validateBatchRequest(request BatchRequest) error {
 	return nil
 }
 
-// buildGraphQLOrgQuery builds a GraphQL query for organization data
+// buildGraphQLOrgQuery builds a GraphQL query for organization data (Pure Core)
 func buildGraphQLOrgQuery(request BatchRequest) string {
 	if request.Organization == "" {
 		panic("Organization cannot be empty")
 	}
-	
+
 	repoLimit := 100
 	if request.MaxRepos > 0 && request.MaxRepos < 100 {
 		repoLimit = request.MaxRepos
 	}
-	
+
 	teamLimit := 100
 	if request.MaxTeams > 0 && request.MaxTeams < 100 {
 		teamLimit = request.MaxTeams
 	}
-	
+
 	return fmt.Sprintf(`
 		query($org: String!, $reposCursor: String, $teamsCursor: String) {
 			organization(login: $org) {
@@ -135,70 +135,70 @@ func buildGraphQLOrgQuery(request BatchRequest) string {
 	`, repoLimit, teamLimit)
 }
 
-// parseCodeownersContent parses CODEOWNERS file content
+// parseCodeownersContent parses CODEOWNERS file content (Pure Core)
 func parseCodeownersContent(content string) []CodeownersEntry {
 	if content == "" {
 		return []CodeownersEntry{}
 	}
-	
+
 	lines := strings.Split(content, "\n")
 	entries := []CodeownersEntry{}
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		
+
 		// Skip empty lines and comments
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		
+
 		parts := strings.Fields(trimmed)
 		if len(parts) < 2 {
 			continue
 		}
-		
+
 		pattern := parts[0]
 		owners := parts[1:]
-		
+
 		entries = append(entries, CodeownersEntry{
 			Pattern: pattern,
 			Owners:  owners,
 		})
 	}
-	
+
 	return entries
 }
 
-// extractUniqueOwners extracts unique owners from all CODEOWNERS entries
+// extractUniqueOwners extracts unique owners from all CODEOWNERS entries (Pure Core)
 func extractUniqueOwners(entries []CodeownersEntry) []string {
 	allOwners := []string{}
-	
+
 	for _, entry := range entries {
 		allOwners = append(allOwners, entry.Owners...)
 	}
-	
+
 	return lo.Uniq(allOwners)
 }
 
-// processRepoCodeowners processes codeowners data for a repository
+// processRepoCodeowners processes codeowners data for a repository (Pure Core)
 func processRepoCodeowners(repo map[string]interface{}) GitHubRepo {
 	repoName := extractStringField(repo, "name")
 	fullName := extractStringField(repo, "nameWithOwner")
-	
+
 	if repoName == "" {
 		panic("Repository name cannot be empty")
 	}
-	
+
 	defaultBranch := "main"
 	if branchRef, ok := repo["defaultBranchRef"].(map[string]interface{}); ok {
 		if branch := extractStringField(branchRef, "name"); branch != "" {
 			defaultBranch = branch
 		}
 	}
-	
+
 	codeownersContent := ""
 	codeownersPaths := []string{}
-	
+
 	// Check multiple possible locations for CODEOWNERS
 	locations := []struct {
 		field string
@@ -208,14 +208,14 @@ func processRepoCodeowners(repo map[string]interface{}) GitHubRepo {
 		{"docsCodeowners", ".github/CODEOWNERS"},
 		{"rootCodeowners", "docs/CODEOWNERS"},
 	}
-	
+
 	for _, loc := range locations {
 		if content := extractCodeownersText(repo, loc.field); content != "" {
 			codeownersContent = content
 			codeownersPaths = append(codeownersPaths, loc.path)
 		}
 	}
-	
+
 	return GitHubRepo{
 		Name:              repoName,
 		FullName:          fullName,
@@ -226,20 +226,20 @@ func processRepoCodeowners(repo map[string]interface{}) GitHubRepo {
 	}
 }
 
-// processTeamData processes team data from GraphQL response
+// processTeamData processes team data from GraphQL response (Pure Core)
 func processTeamData(team map[string]interface{}) GitHubTeam {
 	teamName := extractStringField(team, "name")
 	if teamName == "" {
 		panic("Team name cannot be empty")
 	}
-	
+
 	memberCount := 0
 	if members, ok := team["members"].(map[string]interface{}); ok {
 		if count, ok := members["totalCount"].(float64); ok {
 			memberCount = int(count)
 		}
 	}
-	
+
 	return GitHubTeam{
 		ID:          extractInt64Field(team, "databaseId"),
 		NodeID:      extractStringField(team, "id"),
@@ -251,7 +251,7 @@ func processTeamData(team map[string]interface{}) GitHubTeam {
 	}
 }
 
-// extractStringField safely extracts a string field from a map
+// extractStringField safely extracts a string field from a map (Pure Core)
 func extractStringField(data map[string]interface{}, field string) string {
 	if data == nil {
 		return ""
@@ -262,7 +262,7 @@ func extractStringField(data map[string]interface{}, field string) string {
 	return ""
 }
 
-// extractInt64Field safely extracts an int64 field from a map
+// extractInt64Field safely extracts an int64 field from a map (Pure Core)
 func extractInt64Field(data map[string]interface{}, field string) int64 {
 	if data == nil {
 		return 0
@@ -273,7 +273,7 @@ func extractInt64Field(data map[string]interface{}, field string) int64 {
 	return 0
 }
 
-// extractCodeownersText extracts CODEOWNERS text from a blob field
+// extractCodeownersText extracts CODEOWNERS text from a blob field (Pure Core)
 func extractCodeownersText(repo map[string]interface{}, field string) string {
 	if repo == nil {
 		return ""
@@ -286,21 +286,21 @@ func extractCodeownersText(repo map[string]interface{}, field string) string {
 	return ""
 }
 
-// calculateAPICallsNeeded estimates API calls needed for an org
+// calculateAPICallsNeeded estimates API calls needed for an org (Pure Core)
 func calculateAPICallsNeeded(repoCount, teamCount int) int {
 	if repoCount < 0 || teamCount < 0 {
 		panic("Counts cannot be negative")
 	}
-	
+
 	// GraphQL can fetch up to 100 items per call
 	repoCalls := (repoCount + 99) / 100
 	teamCalls := (teamCount + 99) / 100
-	
+
 	// We can fetch both in same query, so take the max
 	return lo.Max([]int{repoCalls, teamCalls, 1})
 }
 
-// optimizeBatchSize calculates optimal batch size to minimize API calls
+// optimizeBatchSize calculates optimal batch size to minimize API calls (Pure Core)
 func optimizeBatchSize(totalItems int, maxPerCall int) int {
 	if totalItems <= 0 {
 		return 0
@@ -308,7 +308,7 @@ func optimizeBatchSize(totalItems int, maxPerCall int) int {
 	if maxPerCall <= 0 {
 		panic("Max per call must be positive")
 	}
-	
+
 	if totalItems <= maxPerCall {
 		return totalItems
 	}
