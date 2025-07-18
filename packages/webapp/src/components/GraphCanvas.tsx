@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { Effect } from 'effect'
-import { Graph } from 'vis-network-react'
+import { Network } from 'vis-network/standalone'
 import { type GraphNode, type GraphEdge } from '../services'
+import 'vis-network/styles/vis-network.css'
 
 interface GraphCanvasProps {
   organization: string
@@ -46,14 +47,17 @@ const ErrorDisplay: React.FC<{ error: unknown }> = ({ error }) => (
 
 // Vis.js graph component
 interface VisGraphComponentProps {
-  nodes: GraphNode[]
-  edges: GraphEdge[]
+  nodes?: GraphNode[]
+  edges?: GraphEdge[]
 }
 
 const VisGraphComponent: React.FC<VisGraphComponentProps> = ({
   nodes,
   edges,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const networkRef = useRef<Network | null>(null)
+
   const visOptions = useMemo(
     () => ({
       nodes: {
@@ -186,46 +190,62 @@ const VisGraphComponent: React.FC<VisGraphComponentProps> = ({
   // Transform nodes to vis format
   const visNodes = useMemo(
     () =>
-      nodes.map((node) => ({
+      nodes?.map((node) => ({
         id: node.id,
         label: node.label,
         group: node.type,
         title: `${node.type}: ${node.label}`,
         x: node.position.x,
         y: node.position.y,
-      })),
+      })) || [],
     [nodes]
   )
 
   // Transform edges to vis format
   const visEdges = useMemo(
     () =>
-      edges.map((edge) => ({
+      edges?.map((edge) => ({
         id: edge.id,
         from: edge.source,
         to: edge.target,
         label: edge.label,
         title: `${edge.type}: ${edge.label}`,
-      })),
+      })) || [],
     [edges]
   )
 
-  const graphData = {
+  const graphData = useMemo(() => ({
     nodes: visNodes,
     edges: visEdges,
-  }
+  }), [visNodes, visEdges])
+
+  useEffect(() => {
+    if (containerRef.current && graphData.nodes.length > 0) {
+      // Destroy existing network if it exists
+      if (networkRef.current) {
+        networkRef.current.destroy()
+      }
+
+      // Create new network
+      networkRef.current = new Network(containerRef.current, graphData, visOptions)
+      
+      console.log('Network instance created:', networkRef.current)
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (networkRef.current) {
+        networkRef.current.destroy()
+        networkRef.current = null
+      }
+    }
+  }, [graphData, visOptions])
 
   return (
-    <div style={{ width: '100%', height: '100vh' }}>
-      <Graph
-        graph={graphData}
-        options={visOptions}
-        getNetwork={(network) => {
-          // You can store the network instance for later use
-          console.log('Network instance:', network)
-        }}
-      />
-    </div>
+    <div 
+      ref={containerRef}
+      style={{ width: '100%', height: '100vh' }}
+    />
   )
 }
 

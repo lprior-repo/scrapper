@@ -196,6 +196,8 @@ tasks:
       - go run . cleanup || true
       - echo "⚙️  Setting up development environment..."
       - task: setup
+      - echo "📦 Installing frontend dependencies..."
+      - cd packages/webapp && bun install
       - echo "🚀 Starting development stack..."
       - echo "  📊 Neo4j{{":"}} http{{":"}}//localhost{{":"}}7474"
       - echo "  🔧 API{{":"}} http{{":"}}//localhost{{":"}}8081"
@@ -309,6 +311,13 @@ tasks:
       - hurl --test --variables-file tests/config/global.hurl tests/functional/docs.hurl
       - hurl --test --variables-file tests/config/global.hurl tests/functional/openapi.hurl
       - echo "✅ Functional API tests passed!"
+
+  test-frontend:
+    desc: Run frontend tests (requires frontend server running)
+    cmds:
+      - echo "🌐 Running frontend tests..."
+      - hurl --test tests/functional/frontend.hurl
+      - echo "✅ Frontend tests passed!"
 
   test-api-security:
     desc: Run security API tests
