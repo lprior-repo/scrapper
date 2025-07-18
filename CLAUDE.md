@@ -69,7 +69,7 @@ MANDATORY DEVELOPMENT WORKFLOW:
 ALL development tasks MUST use the Taskfile commands. Never use direct go run, docker, or build commands. The following commands are the ONLY acceptable development workflow:
 
 - task dev: Start full development stack
-- task start-api: Start API server only  
+- task start-api: Start API server only
 - task start-frontend: Start frontend only
 - task setup: Setup development environment
 - task clean: Clean up development environment
@@ -77,4 +77,3 @@ ALL development tasks MUST use the Taskfile commands. Never use direct go run, d
 - task test: Run tests
 
 This is a strict mandate. All AI assistants working on this codebase MUST use these Task commands for consistency, proper environment setup, and adherence to project standards.
-

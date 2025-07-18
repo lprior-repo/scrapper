@@ -1,0 +1,36 @@
+{
+  "name": "@overseer/monorepo",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run dev:webapp",
+    "dev:webapp": "cd packages/webapp && bun run dev",
+    "dev:ingestor": "cd packages/ingestor && bun run dev",
+    "build": "bun run build:webapp",
+    "build:webapp": "cd packages/webapp && bun run build",
+    "lint": "bun run lint:webapp && bun run lint:ingestor",
+    "lint:webapp": "cd packages/webapp && bun run lint",
+    "lint:ingestor": "cd packages/ingestor && bun run lint",
+    "lint:fix": "bun run lint:fix:webapp && bun run lint:fix:ingestor",
+    "lint:fix:webapp": "cd packages/webapp && bun run lint:fix",
+    "lint:fix:ingestor": "cd packages/ingestor && bun run lint:fix",
+    "format": "prettier --write .",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-prettier": "^5.5.1",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.2"
+  },
+  "dependencies": {
+    "effect": "^3.4.0",
+    "@effect/schema": "^0.68.0",
+    "@effect/platform": "^0.58.0",
+    "@effect/platform-node": "^0.53.0"
+  }
+}

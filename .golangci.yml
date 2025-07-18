@@ -1,21 +1,5 @@
-# This is the configuration file for golangci-lint, a linter runner for Go.
-# For a full reference, see: https://golangci-lint.run/usage/configuration/
-#
-# This configuration is designed to be a balanced and strict baseline for professional
-# Go projects, prioritizing correctness, bug prevention, and readability while maintaining
-# good performance for both local development and CI pipelines.
-#
-# Configuration aligned with CLAUDE.md coding standards:
-# - Cyclomatic complexity capped at 5 (stricter than typical 15)
-# - Functions limited to 10-25 lines
-# - Max 3 parameters per function
-# - No nesting beyond 2 levels
-# - 100% test coverage requirement
-# - Pure functions with no side effects
-# - Defensive programming with assertions
-
 # The version of the configuration file format. Version "2" is the latest and recommended.
-version: "2"
+version: '2'
 
 # The `run` section contains global settings for the linter execution.
 run:
@@ -25,7 +9,7 @@ run:
 
   # Explicitly set the Go version to be used for analysis. This should match the
   # version in your project's go.mod file to ensure consistent and correct analysis.
-  go: "1.24"
+  go: '1.24'
 
   # In CI, it's best practice to ensure the linter doesn't modify go.mod/go.sum.
   modules-download-mode: readonly
@@ -39,34 +23,34 @@ linters:
   enable:
     # --- Core Linters (Non-Negotiable) ---
     # These linters form the foundation of a high-quality Go codebase.
-    - govet         # The official Go vet tool; finds common errors. High signal, no performance cost.
-    - staticcheck   # The single most valuable linter. A huge set of high-confidence checks for bugs, performance, and simplifications.
-    - unused        # Checks for unused code (constants, variables, functions, types). Essential for code health.
-    - errcheck      # Ensures errors are checked. See `linters-settings` for essential configuration.
-    - ineffassign   # Detects useless variable assignments.
+    - govet # The official Go vet tool; finds common errors. High signal, no performance cost.
+    - staticcheck # The single most valuable linter. A huge set of high-confidence checks for bugs, performance, and simplifications.
+    - unused # Checks for unused code (constants, variables, functions, types). Essential for code health.
+    - errcheck # Ensures errors are checked. See `linters-settings` for essential configuration.
+    - ineffassign # Detects useless variable assignments.
 
     # --- Bug Prevention (High-Value) ---
     # These linters catch common, subtle bugs that can lead to runtime issues.
-    - bodyclose     # Ensures response bodies are closed to prevent resource leaks.
-    - contextcheck  # Checks for correct passing of `context.Context` as the first argument.
-    - copyloopvar   # Catches a common bug with loop variable closures (critical for Go < 1.22).
-    - errorlint     # Enforces correct error wrapping checks using `errors.Is`/`As`.
-    - nilerr        # Finds code that returns `nil` for an error after a non-nil error check.
-    - rowserrcheck  # Checks for unchecked errors on `sql.Rows` iteration.
+    - bodyclose # Ensures response bodies are closed to prevent resource leaks.
+    - contextcheck # Checks for correct passing of `context.Context` as the first argument.
+    - copyloopvar # Catches a common bug with loop variable closures (critical for Go < 1.22).
+    - errorlint # Enforces correct error wrapping checks using `errors.Is`/`As`.
+    - nilerr # Finds code that returns `nil` for an error after a non-nil error check.
+    - rowserrcheck # Checks for unchecked errors on `sql.Rows` iteration.
     - sqlclosecheck # Checks that `sql.Rows` and `sql.Stmt` are closed.
-    - gosec         # The standard for Go security analysis. See `exclusions` for test file configuration.
+    - gosec # The standard for Go security analysis. See `exclusions` for test file configuration.
 
     # --- Style, Readability & Complexity ---
     # These linters enforce conventions that make code easier to read, understand, and maintain.
-    - cyclop        # Checks for overly complex functions. See settings for complexity threshold.
-    - gocritic      # A powerful meta-linter with a wide range of checks. See settings for enabled tags.
-    - goconst       # Finds repeated strings that could be constants.
-    - revive        # A fast, configurable replacement for the deprecated `golint`.
+    - cyclop # Checks for overly complex functions. See settings for complexity threshold.
+    - gocritic # A powerful meta-linter with a wide range of checks. See settings for enabled tags.
+    - goconst # Finds repeated strings that could be constants.
+    - revive # A fast, configurable replacement for the deprecated `golint`.
 
     # --- Testing ---
     # These linters improve the quality and correctness of test code.
-    - testifylint   # For projects using the `testify` suite, checks for correct usage.
-    - thelper       # Enforces `t.Helper()` in test helper functions for better error reporting.
+    - testifylint # For projects using the `testify` suite, checks for correct usage.
+    - thelper # Enforces `t.Helper()` in test helper functions for better error reporting.
     # - paralleltest  # Disabled per user request - not requiring t.Parallel() calls
 
   # The `linters-settings` section provides fine-grained configuration for specific linters.
@@ -96,14 +80,14 @@ linters:
         - performance
         - style
       disabled-checks:
-        - dupImport      # Handled by goimports
-        - ifElseChain    # Sometimes necessary for clarity
-        - octalLiteral   # Sometimes intentional
-        - whyNoLint      # We'll use explanations
-        - wrapperFunc    # Sometimes necessary for abstractions
-        - importShadow   # Sometimes unavoidable
-        - unnamedResult  # Sometimes clearer without names
-        - hugeParam      # Don't want to use pointers unless absolutely necessary
+        - dupImport # Handled by goimports
+        - ifElseChain # Sometimes necessary for clarity
+        - octalLiteral # Sometimes intentional
+        - whyNoLint # We'll use explanations
+        - wrapperFunc # Sometimes necessary for abstractions
+        - importShadow # Sometimes unavoidable
+        - unnamedResult # Sometimes clearer without names
+        - hugeParam # Don't want to use pointers unless absolutely necessary
       settings:
         captLocal:
           paramsOnly: true
@@ -186,43 +170,43 @@ linters:
 
     # Configure `staticcheck` to disable capitalization check for error strings
     staticcheck:
-      checks: ["all", "-ST1005"]  # Disable error string capitalization rule
-      
+      checks: ['all', '-ST1005'] # Disable error string capitalization rule
+
     # Configure `gosec` (reduce noise in test files).
     gosec:
       includes:
-        - G101  # Look for hard coded credentials
-        - G102  # Bind to all interfaces
-        - G103  # Audit the use of unsafe block
-        - G104  # Audit errors not checked
-        - G106  # Audit the use of ssh.InsecureIgnoreHostKey
-        - G107  # Url provided to HTTP request as taint input
-        - G108  # Profiling endpoint automatically exposed on /debug/pprof
-        - G109  # Potential Integer overflow made by strconv.Atoi result conversion to int16/32
-        - G110  # Potential DoS vulnerability via decompression bomb
-        - G201  # SQL query construction using format string
-        - G202  # SQL query construction using string concatenation
-        - G203  # Use of unescaped data in HTML templates
-        - G204  # Audit use of command execution
-        - G301  # Poor file permissions used when creating a directory
-        - G302  # Poor file permissions used with chmod
-        - G303  # Creating tempfile using a predictable path
-        - G305  # File traversal when extracting zip/tar archive
-        - G306  # Poor file permissions used when writing to a new file
-        - G307  # Poor file permissions used when creating a file with os.Create
-        - G401  # Detect the usage of DES, RC4, MD5 or SHA1
-        - G402  # Look for bad TLS connection settings
-        - G403  # Ensure minimum RSA key length of 2048 bits
-        - G404  # Insecure random number source (rand)
-        - G501  # Import blocklist: crypto/md5
-        - G502  # Import blocklist: crypto/des
-        - G503  # Import blocklist: crypto/rc4
-        - G504  # Import blocklist: net/http/cgi
-        - G505  # Import blocklist: crypto/sha1
-        - G601  # Implicit memory aliasing of items from a range statement
+        - G101 # Look for hard coded credentials
+        - G102 # Bind to all interfaces
+        - G103 # Audit the use of unsafe block
+        - G104 # Audit errors not checked
+        - G106 # Audit the use of ssh.InsecureIgnoreHostKey
+        - G107 # Url provided to HTTP request as taint input
+        - G108 # Profiling endpoint automatically exposed on /debug/pprof
+        - G109 # Potential Integer overflow made by strconv.Atoi result conversion to int16/32
+        - G110 # Potential DoS vulnerability via decompression bomb
+        - G201 # SQL query construction using format string
+        - G202 # SQL query construction using string concatenation
+        - G203 # Use of unescaped data in HTML templates
+        - G204 # Audit use of command execution
+        - G301 # Poor file permissions used when creating a directory
+        - G302 # Poor file permissions used with chmod
+        - G303 # Creating tempfile using a predictable path
+        - G305 # File traversal when extracting zip/tar archive
+        - G306 # Poor file permissions used when writing to a new file
+        - G307 # Poor file permissions used when creating a file with os.Create
+        - G401 # Detect the usage of DES, RC4, MD5 or SHA1
+        - G402 # Look for bad TLS connection settings
+        - G403 # Ensure minimum RSA key length of 2048 bits
+        - G404 # Insecure random number source (rand)
+        - G501 # Import blocklist: crypto/md5
+        - G502 # Import blocklist: crypto/des
+        - G503 # Import blocklist: crypto/rc4
+        - G504 # Import blocklist: net/http/cgi
+        - G505 # Import blocklist: crypto/sha1
+        - G601 # Implicit memory aliasing of items from a range statement
       config:
-        G306: "0644"
-        G307: "0644"
+        G306: '0644'
+        G307: '0644'
 
     # Configure `testifylint` for correct testify usage.
     testifylint:
@@ -278,9 +262,9 @@ linters:
 # The `formatters` section is new in v2 and separates formatting from linting.
 formatters:
   enable:
-    - gofmt      # The standard Go formatter.
-    - goimports  # Sorts imports and adds/removes them as needed.
-    - gci        # Provides more advanced import grouping capabilities.
+    - gofmt # The standard Go formatter.
+    - goimports # Sorts imports and adds/removes them as needed.
+    - gci # Provides more advanced import grouping capabilities.
 
 # The `exclusions` section is for intelligently ignoring issues to reduce noise.
 exclusions:
@@ -321,17 +305,17 @@ exclusions:
     # Exclude `lll` (line length) issues for lines containing `go:generate`.
     - linters:
         - lll
-      source: "^//go:generate "
+      source: '^//go:generate '
 
     # Allow exported without comments in test files
     - path: _test\.go
-      text: "exported .* should have comment"
+      text: 'exported .* should have comment'
       linters:
         - revive
 
     # Allow package comments in non-main files
     - path: '\.go$'
-      text: "package-comments"
+      text: 'package-comments'
       linters:
         - revive
 

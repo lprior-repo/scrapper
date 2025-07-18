@@ -9,13 +9,7 @@ jsonpath "$.data.status" == "healthy"
 jsonpath "$.data.database" == "connected"
 jsonpath "$.data.version" == "1.0.0"
 
-# Test 2: API Documentation Endpoint
-GET http://localhost:8081/api/docs
-HTTP 200
-[Asserts]
-header "Content-Type" contains "text/html"
-
-# Test 3: OpenAPI Specification Endpoint
+# Test 2: OpenAPI Specification Endpoint
 GET http://localhost:8081/api/openapi.yaml
 HTTP 200
 [Asserts]

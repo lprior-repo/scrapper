@@ -19,6 +19,7 @@ type ScanRequest struct {
 	Organization string `json:"organization"`
 	MaxRepos     int    `json:"max_repos"`
 	MaxTeams     int    `json:"max_teams"`
+	UseTopics    bool   `json:"use_topics"`
 }
 
 // ScanResponse represents the response from scanning an organization
@@ -35,6 +36,7 @@ type ScanSummary struct {
 	TotalRepos          int      `json:"total_repos"`
 	ReposWithCodeowners int      `json:"repos_with_codeowners"`
 	TotalTeams          int      `json:"total_teams"`
+	TotalTopics         int      `json:"total_topics"`
 	UniqueOwners        []string `json:"unique_owners"`
 	APICallsUsed        int      `json:"api_calls_used"`
 	ProcessingTimeMs    int64    `json:"processing_time_ms"`
@@ -75,6 +77,7 @@ type StatsResponse struct {
 	Organization      string `json:"organization"`
 	TotalRepositories int    `json:"total_repositories"`
 	TotalTeams        int    `json:"total_teams"`
+	TotalTopics       int    `json:"total_topics"`
 	TotalUsers        int    `json:"total_users"`
 	TotalCodeowners   int    `json:"total_codeowners"`
 	CodeownerCoverage string `json:"codeowner_coverage"`
@@ -89,15 +92,38 @@ type AppDependencies struct {
 
 // createAppDependencies creates application dependencies (Orchestrator)
 func createAppDependencies(ctx context.Context) (*AppDependencies, error) {
-	// Load configuration using environment variables
-	config := loadConfigFromEnv()
-
-	// Validate configuration
-	if err := validateConfiguration(config); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+	// Load and validate configuration
+	config, err := loadAndValidateConfig()
+	if err != nil {
+		return nil, fmt.Errorf("configuration setup failed: %w", err)
 	}
 
-	neo4jConn, err := createNeo4jConnection(ctx, config.Neo4j)
+	// Setup Neo4j connection
+	neo4jConn, err := setupNeo4jConnection(ctx, config.Neo4j)
+	if err != nil {
+		return nil, fmt.Errorf("Neo4j setup failed: %w", err)
+	}
+
+	return &AppDependencies{
+		Config:    config,
+		Neo4jConn: neo4jConn,
+	}, nil
+}
+
+// loadAndValidateConfig loads and validates the application configuration (Pure Core)
+func loadAndValidateConfig() (AppConfig, error) {
+	config := loadConfigFromEnv()
+
+	if err := validateConfiguration(config); err != nil {
+		return AppConfig{}, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	return config, nil
+}
+
+// setupNeo4jConnection creates and initializes Neo4j connection (Orchestrator)
+func setupNeo4jConnection(ctx context.Context, config Neo4jConfig) (*Neo4jConnection, error) {
+	neo4jConn, err := createNeo4jConnection(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Neo4j connection: %w", err)
 	}
@@ -114,10 +140,7 @@ func createAppDependencies(ctx context.Context) (*AppDependencies, error) {
 		return nil, fmt.Errorf("failed to create Neo4j indexes: %w", err)
 	}
 
-	return &AppDependencies{
-		Config:    config,
-		Neo4jConn: neo4jConn,
-	}, nil
+	return neo4jConn, nil
 }
 
 // cleanupAppDependencies cleans up application dependencies (Orchestrator)
@@ -146,11 +169,13 @@ func (h *AppHandler) handleScanOrganization(ctx *gofr.Context) (interface{}, err
 
 	maxRepos := parseIntFromQuery(ctx, "max_repos", 100)
 	maxTeams := parseIntFromQuery(ctx, "max_teams", 50)
+	useTopics := parseBoolFromQuery(ctx, "use_topics", h.deps.Config.GitHub.UseTopics)
 
 	scanRequest := ScanRequest{
 		Organization: orgName,
 		MaxRepos:     maxRepos,
 		MaxTeams:     maxTeams,
+		UseTopics:    useTopics,
 	}
 
 	response, err := scanOrganization(ctx, h.deps, scanRequest)
@@ -210,7 +235,7 @@ func (h *AppHandler) handleHealth(ctx *gofr.Context) (interface{}, error) {
 }
 
 // handleOpenAPI serves the OpenAPI documentation UI (Orchestrator)
-func (h *AppHandler) handleOpenAPI(ctx *gofr.Context) (interface{}, error) {
+func (*AppHandler) handleOpenAPI(_ *gofr.Context) (interface{}, error) {
 	html := `<!DOCTYPE html>
 <html>
 <head>
@@ -250,7 +275,7 @@ func (h *AppHandler) handleOpenAPI(ctx *gofr.Context) (interface{}, error) {
 }
 
 // handleOpenAPISpec serves the OpenAPI specification file (Orchestrator)
-func (h *AppHandler) handleOpenAPISpec(ctx *gofr.Context) (interface{}, error) {
+func (*AppHandler) handleOpenAPISpec(_ *gofr.Context) (interface{}, error) {
 	specContent := `openapi: 3.0.3
 info:
   title: GitHub Codeowners Visualization API
@@ -333,6 +358,13 @@ paths:
             default: 50
             minimum: 1
             maximum: 500
+        - name: use_topics
+          in: query
+          required: false
+          description: Use repository topics instead of teams for organization
+          schema:
+            type: boolean
+            default: false
 
 components:
   schemas:
@@ -353,6 +385,8 @@ components:
             repos_with_codeowners:
               type: integer
             total_teams:
+              type: integer
+            total_topics:
               type: integer
             unique_owners:
               type: array
@@ -384,10 +418,23 @@ func scanOrganization(ctx *gofr.Context, deps *AppDependencies, request ScanRequ
 		return ScanResponse{}, fmt.Errorf("failed to fetch repositories: %w", err)
 	}
 
-	// Fetch teams
-	teams, err := fetchGitHubTeamsWithService(ctx, request.Organization, request.MaxTeams)
-	if err != nil {
-		return ScanResponse{}, fmt.Errorf("failed to fetch teams: %w", err)
+	// Fetch teams or topics based on configuration
+	var teams []GitHubTeam
+	var topics []GitHubTopic
+
+	if request.UseTopics {
+		// Use topics from repositories - no additional API calls needed
+		topics = collectTopicsFromRepositories(repos)
+		ctx.Logger.Infof("Collected %d unique topics from repositories", len(topics))
+	} else {
+		// Fetch teams (optional - continue if we can't access them)
+		teamsResult, err := fetchGitHubTeamsWithService(ctx, request.Organization, request.MaxTeams)
+		if err != nil {
+			ctx.Logger.Warnf("Failed to fetch teams for organization %s (likely due to permissions): %v", request.Organization, err)
+			teams = []GitHubTeam{} // Continue with empty teams
+		} else {
+			teams = teamsResult
+		}
 	}
 
 	// Fetch CODEOWNERS files
@@ -397,12 +444,12 @@ func scanOrganization(ctx *gofr.Context, deps *AppDependencies, request ScanRequ
 	}
 
 	// Store data in Neo4j
-	if err := storeOrganizationData(ctx, deps.Neo4jConn, org, repos, teams, codeowners); err != nil {
+	if err := storeOrganizationData(ctx, deps.Neo4jConn, org, repos, teams, topics, codeowners); err != nil {
 		return ScanResponse{}, fmt.Errorf("failed to store data: %w", err)
 	}
 
 	// Calculate summary
-	summary := calculateScanSummary(repos, codeowners, teams, time.Since(startTime))
+	summary := calculateScanSummary(repos, codeowners, teams, topics, time.Since(startTime))
 
 	return ScanResponse{
 		Success:      true,
@@ -413,6 +460,7 @@ func scanOrganization(ctx *gofr.Context, deps *AppDependencies, request ScanRequ
 			"organization": org,
 			"repositories": repos,
 			"teams":        teams,
+			"topics":       topics,
 			"codeowners":   codeowners,
 		},
 	}, nil
@@ -481,27 +529,33 @@ func fetchCodeownersForReposWithService(ctx *gofr.Context, repos []GitHubReposit
 	codeowners := make([]GitHubCodeowners, 0, len(repos))
 
 	for _, repo := range repos {
-		owner, name := parseRepositoryFullName(repo.FullName)
-		if owner == "" || name == "" {
-			continue
-		}
-
-		codeowner, err := fetchGitHubCodeownersWithService(ctx, owner, name)
-		if err != nil {
-			// Continue on error - not all repos have CODEOWNERS
-			continue
-		}
-
-		if len(codeowner.Rules) > 0 {
-			codeowners = append(codeowners, codeowner)
+		codeowner := fetchCodeownersForSingleRepo(ctx, repo)
+		if codeowner != nil && len(codeowner.Rules) > 0 {
+			codeowners = append(codeowners, *codeowner)
 		}
 	}
 
 	return codeowners, nil
 }
 
+// fetchCodeownersForSingleRepo fetches CODEOWNERS for a single repository (Pure Core)
+func fetchCodeownersForSingleRepo(ctx *gofr.Context, repo GitHubRepository) *GitHubCodeowners {
+	owner, name := parseRepositoryFullName(repo.FullName)
+	if owner == "" || name == "" {
+		return nil
+	}
+
+	codeowner, err := fetchGitHubCodeownersWithService(ctx, owner, name)
+	if err != nil {
+		// Continue on error - not all repos have CODEOWNERS
+		return nil
+	}
+
+	return &codeowner
+}
+
 // storeOrganizationData stores organization data in Neo4j (Orchestrator)
-func storeOrganizationData(ctx *gofr.Context, conn *Neo4jConnection, org GitHubOrganization, repos []GitHubRepository, teams []GitHubTeam, codeowners []GitHubCodeowners) error {
+func storeOrganizationData(ctx *gofr.Context, conn *Neo4jConnection, org GitHubOrganization, repos []GitHubRepository, teams []GitHubTeam, topics []GitHubTopic, codeowners []GitHubCodeowners) error {
 	session, err := createNeo4jSession(ctx, conn)
 	if err != nil {
 		return fmt.Errorf("failed to create Neo4j session: %w", err)
@@ -524,6 +578,13 @@ func storeOrganizationData(ctx *gofr.Context, conn *Neo4jConnection, org GitHubO
 	for _, team := range teams {
 		if err := storeTeam(ctx, session, team, org.Login); err != nil {
 			return fmt.Errorf("failed to store team %s: %w", team.Name, err)
+		}
+	}
+
+	// Store topics
+	for _, topic := range topics {
+		if err := storeTopic(ctx, session, topic, org.Login); err != nil {
+			return fmt.Errorf("failed to store topic %s: %w", topic.Name, err)
 		}
 	}
 
@@ -552,6 +613,21 @@ func parseIntFromQuery(ctx *gofr.Context, key string, defaultValue int) int {
 	return parsed
 }
 
+// parseBoolFromQuery extracts boolean from query parameters (Pure Core)
+func parseBoolFromQuery(ctx *gofr.Context, key string, defaultValue bool) bool {
+	value := ctx.Param(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return defaultValue
+	}
+
+	return parsed
+}
+
 // parseRepositoryFullName splits repository full name into owner and name (Pure Core)
 func parseRepositoryFullName(fullName string) (string, string) {
 	parts := strings.Split(fullName, "/")
@@ -562,7 +638,7 @@ func parseRepositoryFullName(fullName string) (string, string) {
 }
 
 // calculateScanSummary calculates summary statistics from scan results (Pure Core)
-func calculateScanSummary(repos []GitHubRepository, codeowners []GitHubCodeowners, teams []GitHubTeam, duration time.Duration) ScanSummary {
+func calculateScanSummary(repos []GitHubRepository, codeowners []GitHubCodeowners, teams []GitHubTeam, topics []GitHubTopic, duration time.Duration) ScanSummary {
 	uniqueOwners := make(map[string]bool)
 
 	for _, codeowner := range codeowners {
@@ -579,6 +655,7 @@ func calculateScanSummary(repos []GitHubRepository, codeowners []GitHubCodeowner
 		TotalRepos:          len(repos),
 		ReposWithCodeowners: len(codeowners),
 		TotalTeams:          len(teams),
+		TotalTopics:         len(topics),
 		UniqueOwners:        ownersList,
 		APICallsUsed:        len(repos) + len(teams) + len(codeowners) + 1, // Estimated
 		ProcessingTimeMs:    duration.Milliseconds(),
@@ -712,7 +789,7 @@ func main() {
 	app.GET("/api/graph/{org}", handler.handleGetGraph)
 	app.GET("/api/stats/{org}", handler.handleGetStats)
 	app.GET("/api/health", handler.handleHealth)
-	
+
 	// OpenAPI documentation
 	app.GET("/api/docs", handler.handleOpenAPI)
 	app.GET("/api/openapi.yaml", handler.handleOpenAPISpec)

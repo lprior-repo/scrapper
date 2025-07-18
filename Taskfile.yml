@@ -9,6 +9,9 @@ tasks:
       - go run . --cleanup || true
       - docker compose up -d neo4j
       - task: wait-for-neo4j
+      - echo "📦 Installing TypeScript dependencies..."
+      - bun install
+      - cd packages/webapp && bun install
       - echo "Development environment ready"
 
   wait-for-neo4j:
@@ -141,6 +144,7 @@ tasks:
       - task: security
       - task: check-coverage
       - task: test
+      - task: test-api
       - echo "✅ All quality checks passed!"
 
   quality-fast:
@@ -151,6 +155,7 @@ tasks:
       - task: security
       - task: check-coverage
       - task: test-mutation-fast
+      - task: test-api-ci
       - echo "✅ Fast quality checks passed!"
 
   ci:
@@ -175,6 +180,7 @@ tasks:
       - docker volume rm scrapper_neo4j_data scrapper_neo4j_logs || true
       - rm -f coverage.out coverage.html gosec-report.json
       - rm -rf bin/
+      - rm -rf tests/reports/
 
   reset:
     desc: Reset the development environment
@@ -184,18 +190,20 @@ tasks:
 
   # Development Server Tasks
   dev:
-    desc: Start the full development stack (database, API, frontend)
-    deps: [setup]
+    desc: Start the full development stack (database, API, frontend) with proper cleanup and signal handling
     cmds:
-      - task: start-api &
-      - task: start-frontend &
-      - echo "🚀 Full stack started{{":"}}
+      - echo "🧹 Performing emergency cleanup for fresh start..."
+      - go run . cleanup || true
+      - echo "⚙️  Setting up development environment..."
+      - task: setup
+      - echo "🚀 Starting development stack..."
       - echo "  📊 Neo4j{{":"}} http{{":"}}//localhost{{":"}}7474"
       - echo "  🔧 API{{":"}} http{{":"}}//localhost{{":"}}8081"
       - echo "  🌐 Frontend{{":"}} http{{":"}}//localhost{{":"}}3000"
       - echo ""
-      - echo "Use Ctrl+C to stop all services"
-      - wait
+      - echo "Starting services concurrently... Press Ctrl+C to stop all services."
+      - echo ""
+      - ./start-dev.sh
 
   start-api:
     desc: Start the backend API server
@@ -208,7 +216,7 @@ tasks:
     desc: Start the frontend development server
     cmds:
       - echo "🌐 Starting frontend on port 3000..."
-      - cd ui && bun run dev
+      - cd packages/webapp && bun run dev
 
   stop:
     desc: Stop all development services
@@ -233,35 +241,36 @@ tasks:
     desc: Setup frontend development environment
     cmds:
       - echo "📦 Installing frontend dependencies..."
-      - cd ui && bun install
+      - bun install
+      - cd packages/webapp && bun install
       - echo "🎭 Installing Playwright browsers..."
-      - cd ui && bunx playwright install
+      - cd packages/webapp && bunx playwright install
 
   build-frontend:
     desc: Build the frontend for production
     cmds:
       - echo "📦 Building frontend..."
-      - cd ui && bun run build
+      - cd packages/webapp && bun run build
 
   test-frontend:
     desc: Run frontend tests (unit, lint, e2e)
     cmds:
       - echo "🧪 Running frontend tests..."
-      - cd ui && bun run lint
-      - cd ui && bun run test
-      - cd ui && bun run playwright
+      - cd packages/webapp && bun run lint
+      - cd packages/webapp && bun run test
+      - cd packages/webapp && bun run playwright
 
   lint-frontend:
     desc: Run TypeScript linting
     cmds:
       - echo "🔍 Running TypeScript linting..."
-      - cd ui && bun run lint
+      - cd packages/webapp && bun run lint
 
   fix-frontend:
     desc: Auto-fix TypeScript code issues
     cmds:
       - echo "🔧 Auto-fixing TypeScript code..."
-      - cd ui && bun run lint --fix
+      - cd packages/webapp && bun run lint --fix
 
   # Full Stack Tasks
   dev-full:
@@ -270,17 +279,93 @@ tasks:
       - task: setup-frontend
       - task: dev
 
+  # API Testing Tasks
+  test-api:
+    desc: Run all API tests (health, functional, security, performance)
+    deps: [setup]
+    cmds:
+      - echo "🌐 Running complete API test suite..."
+      - task: test-api-health
+      - task: test-api-functional
+      - task: test-api-security
+      - task: test-api-performance
+      - echo "✅ All API tests completed!"
+
+  test-api-health:
+    desc: Run health check API tests
+    cmds:
+      - echo "💚 Running health check API tests..."
+      - hurl --test k8s_tests.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/functional/health.hurl
+      - echo "✅ Health check tests passed!"
+
+  test-api-functional:
+    desc: Run functional API tests
+    cmds:
+      - echo "⚙️ Running functional API tests..."
+      - hurl --test --variables-file tests/config/global.hurl tests/functional/scan.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/functional/graph.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/functional/stats.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/functional/docs.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/functional/openapi.hurl
+      - echo "✅ Functional API tests passed!"
+
+  test-api-security:
+    desc: Run security API tests
+    cmds:
+      - echo "🔒 Running security API tests..."
+      - hurl --test --variables-file tests/config/global.hurl tests/security/security-health.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/security/security-scan.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/security/security-graph.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/security/security-stats.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/security/security-docs.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/security/security-openapi.hurl
+      - echo "✅ Security API tests passed!"
+
+  test-api-performance:
+    desc: Run performance API tests
+    cmds:
+      - echo "⚡ Running performance API tests..."
+      - hurl --test --variables-file tests/config/global.hurl tests/performance/performance-health.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/performance/performance-scan.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/performance/performance-graph.hurl
+      - echo "✅ Performance API tests passed!"
+
+  test-api-report:
+    desc: Run all API tests with detailed reporting
+    deps: [setup]
+    cmds:
+      - echo "📊 Running API tests with detailed reporting..."
+      - mkdir -p tests/reports
+      - hurl --test --report-junit tests/reports/api-health-report.xml --variables-file tests/config/global.hurl tests/functional/health.hurl
+      - hurl --test --report-junit tests/reports/api-functional-report.xml --variables-file tests/config/global.hurl tests/functional/scan.hurl tests/functional/graph.hurl tests/functional/stats.hurl tests/functional/docs.hurl tests/functional/openapi.hurl
+      - hurl --test --report-junit tests/reports/api-security-report.xml --variables-file tests/config/global.hurl tests/security/security-*.hurl
+      - hurl --test --report-junit tests/reports/api-performance-report.xml --variables-file tests/config/global.hurl tests/performance/performance-*.hurl
+      - echo "✅ API test reports generated in tests/reports/"
+
+  test-api-ci:
+    desc: Run API tests suitable for CI/CD with fast timeout
+    deps: [setup]
+    cmds:
+      - echo "🚀 Running CI-optimized API tests..."
+      - hurl --test --max-time 30 --variables-file tests/config/global.hurl tests/functional/health.hurl
+      - hurl --test --max-time 60 --variables-file tests/config/global.hurl tests/functional/scan.hurl tests/functional/graph.hurl
+      - hurl --test --max-time 30 --variables-file tests/config/global.hurl tests/security/security-health.hurl tests/security/security-scan.hurl
+      - echo "✅ CI API tests completed!"
+
   test-all:
-    desc: Run all tests across Go and TypeScript ecosystems
+    desc: Run all tests across Go, TypeScript, and API ecosystems
     deps: [setup, setup-frontend]
     cmds:
       - echo "🧪 Running comprehensive test suite across all ecosystems..."
       - task: test
       - echo "🎭 Running acceptance tests..."
       - task: test-acceptance
-      - cd ui && bun run test:coverage
-      - cd ui && bun run test:mutation
-      - cd ui && bun run playwright
+      - echo "🌐 Running API tests..."
+      - task: test-api
+      - cd packages/webapp && bun run test:coverage
+      - cd packages/webapp && bun run test:mutation
+      - cd packages/webapp && bun run playwright
       - echo "✅ All ecosystem tests completed!"
 
   lint-all:
@@ -314,9 +399,27 @@ tasks:
     cmds:
       - echo "🧹 Cleaning all artifacts..."
       - task: clean
-      - cd ui && rm -rf coverage/ dist/ node_modules/.cache/
-      - cd ui && rm -rf stryker-tmp/ mutation-report.html
+      - rm -rf node_modules packages/*/node_modules
+      - rm -rf packages/*/dist packages/*/build
+      - rm -rf packages/*/coverage packages/*/.cache
+      - rm -rf packages/*/stryker-tmp packages/*/mutation-report.html
+      - rm -rf tests/reports/
       - echo "✅ All artifacts cleaned!"
+
+  # Ingestor Tasks
+  ingest:
+    desc: Run data ingestion for an organization
+    vars:
+      ORG: '{{.ORG | default "kubernetes"}}'
+    cmds:
+      - echo "📥 Running data ingestion for {{.ORG}}..."
+      - cd packages/ingestor && bun run ingest {{.ORG}}
+
+  ingest:batch:
+    desc: Run batch ingestion for multiple organizations
+    cmds:
+      - echo "📥 Running batch data ingestion..."
+      - cd packages/ingestor && bun run batch
 
   # Utility Tasks
   scan:

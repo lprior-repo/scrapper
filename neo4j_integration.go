@@ -24,7 +24,7 @@ type Neo4jSession struct {
 
 // Neo4jTransaction represents a Neo4j transaction
 type Neo4jTransaction struct {
-	tx neo4j.ManagedTransaction
+	// This struct is kept for future extensibility
 }
 
 // Neo4jResult represents the result of a Neo4j query
@@ -52,7 +52,7 @@ func createNeo4jConnection(ctx context.Context, config Neo4jConfig) (*Neo4jConne
 	driver, err := neo4j.NewDriverWithContext(
 		config.URI,
 		neo4j.BasicAuth(config.Username, config.Password, ""),
-		func(config *neo4j.Config) {
+		func(config *neo4j.Config) { //nolint:staticcheck // Using deprecated type until updated
 			config.MaxConnectionLifetime = 30 * time.Minute
 			config.MaxConnectionPoolSize = 50
 			config.ConnectionAcquisitionTimeout = 2 * time.Minute
@@ -122,7 +122,7 @@ func executeNeo4jReadQuery(ctx context.Context, session *Neo4jSession, query str
 	validateQueryNotEmpty(query)
 
 	result, err := session.session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
-		return executeNeo4jQueryInTx(tx, query, params)
+		return executeNeo4jQueryInTx(ctx, tx, query, params)
 	})
 
 	if err != nil {
@@ -138,7 +138,7 @@ func executeNeo4jWrite(ctx context.Context, session *Neo4jSession, query string,
 	validateQueryNotEmpty(query)
 
 	result, err := session.session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
-		return executeNeo4jQueryInTx(tx, query, params)
+		return executeNeo4jQueryInTx(ctx, tx, query, params)
 	})
 
 	if err != nil {
@@ -149,7 +149,7 @@ func executeNeo4jWrite(ctx context.Context, session *Neo4jSession, query string,
 }
 
 // executeNeo4jQueryInTx executes a single query within a transaction (Pure Core)
-func executeNeo4jQueryInTx(tx neo4j.ManagedTransaction, query string, params map[string]interface{}) (Neo4jResult, error) {
+func executeNeo4jQueryInTx(ctx context.Context, tx neo4j.ManagedTransaction, query string, params map[string]interface{}) (Neo4jResult, error) {
 	validateTransactionNotNil(tx)
 	validateQueryNotEmpty(query)
 
@@ -157,12 +157,12 @@ func executeNeo4jQueryInTx(tx neo4j.ManagedTransaction, query string, params map
 		params = make(map[string]interface{})
 	}
 
-	result, err := tx.Run(context.Background(), query, params)
+	result, err := tx.Run(ctx, query, params)
 	if err != nil {
 		return Neo4jResult{}, wrapNeo4jError(err, "failed to run query")
 	}
 
-	records, err := result.Collect(context.Background())
+	records, err := result.Collect(ctx)
 	if err != nil {
 		return Neo4jResult{}, wrapNeo4jError(err, "failed to collect results")
 	}
@@ -171,7 +171,7 @@ func executeNeo4jQueryInTx(tx neo4j.ManagedTransaction, query string, params map
 		return convertNeo4jRecord(record)
 	})
 
-	summary, err := result.Consume(context.Background())
+	summary, err := result.Consume(ctx)
 	if err != nil {
 		return Neo4jResult{}, wrapNeo4jError(err, "failed to consume result summary")
 	}
@@ -203,11 +203,6 @@ func convertNeo4jRecord(record *neo4j.Record) map[string]interface{} {
 // buildNeo4jHealthQuery builds a health check query (Pure Core)
 func buildNeo4jHealthQuery() string {
 	return "RETURN 1 as health_check"
-}
-
-// buildNeo4jClearQuery builds a query to clear all data (Pure Core)
-func buildNeo4jClearQuery() string {
-	return "MATCH (n) DETACH DELETE n"
 }
 
 // buildNeo4jConstraintQuery builds a query to create constraints (Pure Core)
@@ -310,25 +305,6 @@ func createNeo4jIndexes(ctx context.Context, conn *Neo4jConnection) error {
 		if err != nil {
 			return wrapNeo4jError(err, fmt.Sprintf("failed to create index for %s.%s", index.label, index.property))
 		}
-	}
-
-	return nil
-}
-
-// clearNeo4jDatabase clears all data from the database (Orchestrator)
-func clearNeo4jDatabase(ctx context.Context, conn *Neo4jConnection) error {
-	validateNeo4jConnectionNotNil(conn)
-
-	session, err := createNeo4jSession(ctx, conn)
-	if err != nil {
-		return wrapNeo4jError(err, "failed to create session for clearing database")
-	}
-	defer closeNeo4jSession(ctx, session)
-
-	query := buildNeo4jClearQuery()
-	_, err = executeNeo4jWrite(ctx, session, query, nil)
-	if err != nil {
-		return wrapNeo4jError(err, "failed to clear database")
 	}
 
 	return nil

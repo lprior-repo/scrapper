@@ -7,13 +7,13 @@ HTTP 200
 [Asserts]
 jsonpath "$.data.status" == "healthy"
 jsonpath "$.data.database" == "connected"
-response_time < 5000
+duration < 5000
 
 # Liveness Probe - Check if API is alive
 GET http://localhost:8081/api/health
 HTTP 200
 [Asserts]
-response_time < 3000
+duration < 3000
 header "Content-Type" contains "application/json"
 
 # Startup Probe - Check if API has started successfully
@@ -27,7 +27,7 @@ jsonpath "$.data.timestamp" exists
 GET http://localhost:8081/api/openapi.yaml
 HTTP 200
 [Asserts]
-response_time < 2000
+duration < 2000
 body contains "paths:"
 
 # Network Connectivity Test - Multiple endpoints

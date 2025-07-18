@@ -44,86 +44,102 @@ func getDefaultCleanupConfig() CleanupConfig {
 
 // performCleanStartup performs comprehensive cleanup for fresh startup
 func performCleanStartup(config CleanupConfig) error {
-	if config.Verbose {
-		fmt.Println("🧹 Starting comprehensive cleanup for fresh environment...")
-	}
+	printVerboseMessage(config.Verbose, "🧹 Starting comprehensive cleanup for fresh environment...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
 
+	errors := executeCleanupSteps(ctx, config)
+	logCleanupErrors(errors, config.Verbose)
+
+	printVerboseMessage(config.Verbose, "✅ Cleanup completed successfully!")
+	return nil
+}
+
+func executeCleanupSteps(ctx context.Context, config CleanupConfig) []error {
 	var errors []error
 
-	// 1. Kill processes by pattern
-	if err := killProcessesByPattern(ctx, config.ProcessPatterns, config.Verbose); err != nil {
-		errors = append(errors, fmt.Errorf("failed to kill processes: %w", err))
+	steps := []func() error{
+		func() error { return killProcessesByPattern(ctx, config.ProcessPatterns, config.Verbose) },
+		func() error { return killProcessesByPort(ctx, config.Ports, config.Verbose) },
+		func() error { return stopDockerServices(ctx, config.DockerServices, config.Verbose) },
+		func() error { return cleanupTempFiles(config.Verbose) },
+		func() error { return waitForPortsFree(ctx, config.Ports, config.Verbose) },
 	}
 
-	// 2. Kill processes by port
-	if err := killProcessesByPort(ctx, config.Ports, config.Verbose); err != nil {
-		errors = append(errors, fmt.Errorf("failed to kill processes by port: %w", err))
+	stepNames := []string{
+		"kill processes",
+		"kill processes by port",
+		"stop Docker services",
+		"cleanup temp files",
+		"wait for ports to be free",
 	}
 
-	// 3. Stop Docker services
-	if err := stopDockerServices(ctx, config.DockerServices, config.Verbose); err != nil {
-		errors = append(errors, fmt.Errorf("failed to stop Docker services: %w", err))
-	}
-
-	// 4. Clean up temporary files
-	if err := cleanupTempFiles(config.Verbose); err != nil {
-		errors = append(errors, fmt.Errorf("failed to cleanup temp files: %w", err))
-	}
-
-	// 5. Wait for ports to be free
-	if err := waitForPortsFree(ctx, config.Ports, config.Verbose); err != nil {
-		errors = append(errors, fmt.Errorf("ports still occupied: %w", err))
-	}
-
-	if len(errors) > 0 {
-		for _, err := range errors {
-			if config.Verbose {
-				fmt.Printf("⚠️  Warning: %v\n", err)
-			}
+	for i, step := range steps {
+		if err := step(); err != nil {
+			errors = append(errors, fmt.Errorf("failed to %s: %w", stepNames[i], err))
 		}
-		// Don't return error for warnings - continue with startup
 	}
 
-	if config.Verbose {
-		fmt.Println("✅ Cleanup completed successfully!")
+	return errors
+}
+
+func logCleanupErrors(errors []error, verbose bool) {
+	if len(errors) == 0 {
+		return
 	}
 
-	return nil
+	for _, err := range errors {
+		if verbose {
+			fmt.Printf("⚠️  Warning: %v\n", err)
+		}
+	}
+}
+
+func printVerboseMessage(verbose bool, message string) {
+	if verbose {
+		fmt.Println(message)
+	}
 }
 
 // killProcessesByPattern kills processes matching given patterns
 func killProcessesByPattern(ctx context.Context, patterns []string, verbose bool) error {
 	for _, pattern := range patterns {
-		if verbose {
-			fmt.Printf("🔍 Killing processes matching pattern: %s\n", pattern)
+		if err := killProcessesByPatternSingle(ctx, pattern, verbose); err != nil {
+			printVerboseMessage(verbose, fmt.Sprintf("   Error killing processes for pattern %s: %v", pattern, err))
 		}
+	}
+	return nil
+}
 
-		// Skip if pattern is for the current process
-		if strings.Contains(pattern, strconv.Itoa(os.Getpid())) {
-			continue
+func killProcessesByPatternSingle(ctx context.Context, pattern string, verbose bool) error {
+	printVerboseMessage(verbose, fmt.Sprintf("🔍 Killing processes matching pattern: %s", pattern))
+
+	if shouldSkipPattern(pattern) {
+		return nil
+	}
+
+	cmd := exec.CommandContext(ctx, "pkill", "-f", pattern)
+	output, err := cmd.CombinedOutput()
+
+	return handleKillCommandResult(cmd, output, err, pattern, verbose)
+}
+
+func shouldSkipPattern(pattern string) bool {
+	return strings.Contains(pattern, strconv.Itoa(os.Getpid()))
+}
+
+func handleKillCommandResult(cmd *exec.Cmd, output []byte, err error, pattern string, verbose bool) error {
+	if err != nil {
+		if cmd.ProcessState.ExitCode() == 1 {
+			printVerboseMessage(verbose, fmt.Sprintf("   No processes found for pattern: %s", pattern))
+			return nil
 		}
+		return err
+	}
 
-		// Use pkill with pattern matching
-		cmd := exec.CommandContext(ctx, "pkill", "-f", pattern)
-		output, err := cmd.CombinedOutput()
-
-		if err != nil {
-			// pkill returns exit code 1 if no processes found - this is OK
-			if cmd.ProcessState.ExitCode() == 1 {
-				if verbose {
-					fmt.Printf("   No processes found for pattern: %s\n", pattern)
-				}
-				continue
-			}
-			if verbose {
-				fmt.Printf("   Error killing processes for pattern %s: %v\n", pattern, err)
-			}
-		} else if verbose && len(output) > 0 {
-			fmt.Printf("   Killed processes: %s\n", strings.TrimSpace(string(output)))
-		}
+	if verbose && len(output) > 0 {
+		fmt.Printf("   Killed processes: %s\n", strings.TrimSpace(string(output)))
 	}
 
 	return nil
@@ -132,43 +148,66 @@ func killProcessesByPattern(ctx context.Context, patterns []string, verbose bool
 // killProcessesByPort kills processes using specific ports
 func killProcessesByPort(ctx context.Context, ports []int, verbose bool) error {
 	for _, port := range ports {
-		if verbose {
-			fmt.Printf("🔍 Checking port %d for processes\n", port)
+		if err := killProcessesByPortSingle(ctx, port, verbose); err != nil {
+			printVerboseMessage(verbose, fmt.Sprintf("   Error killing processes on port %d: %v", port, err))
 		}
+	}
+	return nil
+}
 
-		// Find processes using the port
-		cmd := exec.CommandContext(ctx, "lsof", "-ti", fmt.Sprintf(":%d", port))
-		output, err := cmd.Output()
+func killProcessesByPortSingle(ctx context.Context, port int, verbose bool) error {
+	printVerboseMessage(verbose, fmt.Sprintf("🔍 Checking port %d for processes", port))
 
+	pids, err := findProcessesByPort(ctx, port, verbose)
+	if err != nil {
+		return nil // No processes found is OK
+	}
+
+	return killProcessesByPids(pids, port, verbose)
+}
+
+func findProcessesByPort(ctx context.Context, port int, verbose bool) ([]int, error) {
+	cmd := exec.CommandContext(ctx, "lsof", "-ti", fmt.Sprintf(":%d", port))
+	output, err := cmd.Output()
+
+	if err != nil {
+		printVerboseMessage(verbose, fmt.Sprintf("   No processes found on port %d", port))
+		return nil, err
+	}
+
+	return parseProcessIds(string(output))
+}
+
+func parseProcessIds(output string) ([]int, error) {
+	pidStrings := strings.Fields(output)
+	var pids []int
+
+	for _, pidStr := range pidStrings {
+		pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
 		if err != nil {
-			// lsof returns exit code 1 if no processes found - this is OK
-			if verbose {
-				fmt.Printf("   No processes found on port %d\n", port)
-			}
 			continue
 		}
+		pids = append(pids, pid)
+	}
 
-		// Kill each PID found
-		pids := strings.Fields(string(output))
-		for _, pidStr := range pids {
-			pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
-			if err != nil {
-				continue
-			}
+	return pids, nil
+}
 
-			if verbose {
-				fmt.Printf("   Killing process %d on port %d\n", pid, port)
-			}
-
-			// Try graceful termination first
-			if err := syscallKillProcess(pid, false); err != nil {
-				if verbose {
-					fmt.Printf("   Graceful kill failed for PID %d, trying force kill\n", pid)
-				}
-				// Force kill if graceful fails
-				_ = syscallKillProcess(pid, true)
-			}
+func killProcessesByPids(pids []int, port int, verbose bool) error {
+	for _, pid := range pids {
+		if err := killProcessByPid(pid, port, verbose); err != nil {
+			printVerboseMessage(verbose, fmt.Sprintf("   Error killing PID %d: %v", pid, err))
 		}
+	}
+	return nil
+}
+
+func killProcessByPid(pid, port int, verbose bool) error {
+	printVerboseMessage(verbose, fmt.Sprintf("   Killing process %d on port %d", pid, port))
+
+	if err := syscallKillProcess(pid, false); err != nil {
+		printVerboseMessage(verbose, fmt.Sprintf("   Graceful kill failed for PID %d, trying force kill", pid))
+		return syscallKillProcess(pid, true)
 	}
 
 	return nil
@@ -199,11 +238,6 @@ func stopDockerServices(ctx context.Context, services []string, verbose bool) er
 	return nil
 }
 
-// isDockerAvailable checks if Docker is available
-func isDockerAvailable(ctx context.Context) bool {
-	cmd := exec.CommandContext(ctx, "docker", "version")
-	return cmd.Run() == nil
-}
 
 // cleanupTempFiles removes temporary files and directories
 func cleanupTempFiles(verbose bool) error {
@@ -273,13 +307,6 @@ func waitForPortsFree(ctx context.Context, ports []int, verbose bool) error {
 	return nil
 }
 
-// initCleanStartup initializes cleanup before starting services
-func initCleanStartup(verbose bool) error {
-	config := getDefaultCleanupConfig()
-	config.Verbose = verbose
-
-	return performCleanStartup(config)
-}
 
 // Emergency cleanup function that can be called from main
 func emergencyCleanup() {
@@ -296,14 +323,3 @@ func emergencyCleanup() {
 	}
 }
 
-// Graceful shutdown cleanup
-func gracefulShutdown() {
-	fmt.Println("🛑 Graceful shutdown initiated...")
-
-	config := getDefaultCleanupConfig()
-	config.Verbose = true
-
-	if err := performCleanStartup(config); err != nil {
-		log.Printf("Graceful shutdown cleanup failed: %v", err)
-	}
-}

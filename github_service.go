@@ -33,7 +33,7 @@ func RegisterGitHubService(app *gofr.App, config GitHubServiceConfig) {
 // fetchGitHubOrganizationWithService fetches organization data using GoFr HTTP service
 func fetchGitHubOrganizationWithService(ctx *gofr.Context, orgName string) (GitHubOrganization, error) {
 	ctx.Logger.Infof("Fetching GitHub organization: %s", orgName)
-	
+
 	if orgName == "" {
 		ctx.Logger.Errorf("Organization name is required but was empty")
 		return GitHubOrganization{}, &gofrhttp.ErrorMissingParam{
@@ -41,19 +41,32 @@ func fetchGitHubOrganizationWithService(ctx *gofr.Context, orgName string) (GitH
 		}
 	}
 
-	githubSvc := ctx.GetHTTPService("github")
+	resp, err := makeGitHubOrgAPIRequest(ctx, orgName)
+	if err != nil {
+		return GitHubOrganization{}, err
+	}
+	defer resp.Body.Close()
 
-	// Add authorization headers
+	return parseGitHubOrgResponse(ctx, resp, orgName)
+}
+
+// makeGitHubOrgAPIRequest makes API request to GitHub for organization data (Pure Core)
+func makeGitHubOrgAPIRequest(ctx *gofr.Context, orgName string) (*http.Response, error) {
+	githubSvc := ctx.GetHTTPService("github")
 	headers := buildGitHubRequestHeaders()
 	ctx.Logger.Debugf("Making GitHub API request to fetch organization: %s", orgName)
 
 	resp, err := githubSvc.GetWithHeaders(ctx, fmt.Sprintf("orgs/%s", orgName), nil, headers)
 	if err != nil {
 		ctx.Logger.Errorf("Failed to make GitHub API request for organization %s: %v", orgName, err)
-		return GitHubOrganization{}, &gofrhttp.ErrorRequestTimeout{}
+		return nil, &gofrhttp.ErrorRequestTimeout{}
 	}
-	defer resp.Body.Close()
 
+	return resp, nil
+}
+
+// parseGitHubOrgResponse parses GitHub organization API response (Pure Core)
+func parseGitHubOrgResponse(ctx *gofr.Context, resp *http.Response, orgName string) (GitHubOrganization, error) {
 	ctx.Logger.Infof("GitHub API response status for organization %s: %d", orgName, resp.StatusCode)
 
 	if resp.StatusCode == http.StatusNotFound {
@@ -86,92 +99,149 @@ func fetchGitHubOrganizationWithService(ctx *gofr.Context, orgName string) (GitH
 // fetchGitHubRepositoriesWithService fetches repositories using GoFr HTTP service
 func fetchGitHubRepositoriesWithService(ctx *gofr.Context, orgName string, maxRepos int) ([]GitHubRepository, error) {
 	ctx.Logger.Infof("Fetching repositories for organization: %s (max: %d)", orgName, maxRepos)
-	
+
+	if err := validateRepositoryParams(orgName, maxRepos); err != nil {
+		return nil, err
+	}
+
+	githubSvc := ctx.GetHTTPService("github")
+	allRepos, err := fetchAllRepositoryPages(ctx, githubSvc, orgName, maxRepos)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.Logger.Infof("Successfully fetched %d repositories for organization %s", len(allRepos), orgName)
+	return allRepos, nil
+}
+
+// validateRepositoryParams validates input parameters for repository fetching
+func validateRepositoryParams(orgName string, maxRepos int) error {
 	if orgName == "" {
-		ctx.Logger.Errorf("Organization name is required but was empty")
-		return nil, &gofrhttp.ErrorMissingParam{
+		return &gofrhttp.ErrorMissingParam{
 			Params: []string{"organization_name"},
 		}
 	}
 
 	if maxRepos <= 0 {
-		ctx.Logger.Errorf("Invalid maxRepos parameter: %d", maxRepos)
-		return nil, &gofrhttp.ErrorInvalidParam{
+		return &gofrhttp.ErrorInvalidParam{
 			Params: []string{"max_repos", fmt.Sprintf("%d", maxRepos)},
 		}
 	}
 
-	githubSvc := ctx.GetHTTPService("github")
+	return nil
+}
 
+// fetchAllRepositoryPages fetches all repository pages up to maxRepos
+func fetchAllRepositoryPages(ctx *gofr.Context, githubSvc any, orgName string, maxRepos int) ([]GitHubRepository, error) {
 	var allRepos []GitHubRepository
 	page := 1
 	perPage := 100
 
 	for len(allRepos) < maxRepos {
-		ctx.Logger.Debugf("Fetching repositories page %d for organization %s", page, orgName)
-		
-		query := map[string]any{
-			"page":     fmt.Sprintf("%d", page),
-			"per_page": fmt.Sprintf("%d", perPage),
-			"sort":     "updated",
-		}
-
-		headers := buildGitHubRequestHeaders()
-		resp, err := githubSvc.GetWithHeaders(ctx, fmt.Sprintf("orgs/%s/repos", orgName), query, headers)
+		repos, shouldContinue, err := fetchRepositoryPage(ctx, githubSvc, orgName, page, perPage)
 		if err != nil {
-			ctx.Logger.Errorf("Failed to fetch repositories for %s (page %d): %v", orgName, page, err)
-			return nil, &gofrhttp.ErrorRequestTimeout{}
-		}
-		defer resp.Body.Close()
-
-		ctx.Logger.Debugf("Repository API response status for %s (page %d): %d", orgName, page, resp.StatusCode)
-
-		if resp.StatusCode == http.StatusNotFound {
-			ctx.Logger.Warnf("No repositories found for organization: %s", orgName)
-			return nil, &gofrhttp.ErrorEntityNotFound{
-				Name:  "organization_repositories",
-				Value: orgName,
-			}
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			ctx.Logger.Errorf("GitHub API returned error status %d for repositories of %s", resp.StatusCode, orgName)
-			return nil, &gofrhttp.ErrorInvalidParam{
-				Params: []string{"github_api_status", fmt.Sprintf("status_code_%d", resp.StatusCode)},
-			}
-		}
-
-		var repos []GitHubRepository
-		if err := json.NewDecoder(resp.Body).Decode(&repos); err != nil {
-			ctx.Logger.Errorf("Failed to decode repositories response for %s: %v", orgName, err)
-			return nil, &gofrhttp.ErrorInvalidParam{
-				Params: []string{"response_format", err.Error()},
-			}
-		}
-
-		ctx.Logger.Infof("Fetched %d repositories from page %d for organization %s", len(repos), page, orgName)
-
-		if len(repos) == 0 {
-			ctx.Logger.Infof("No more repositories found for organization %s at page %d", orgName, page)
-			break
+			return nil, err
 		}
 
 		allRepos = append(allRepos, repos...)
 		page++
 
-		if len(repos) < perPage {
-			ctx.Logger.Infof("Reached end of repositories for organization %s (page %d had %d repos)", orgName, page-1, len(repos))
+		if !shouldContinue {
 			break
 		}
 	}
 
-	if len(allRepos) > maxRepos {
-		ctx.Logger.Infof("Limiting repositories from %d to %d for organization %s", len(allRepos), maxRepos, orgName)
-		allRepos = allRepos[:maxRepos]
+	return limitRepositories(ctx, allRepos, maxRepos, orgName), nil
+}
+
+// fetchRepositoryPage fetches a single page of repositories
+func fetchRepositoryPage(ctx *gofr.Context, githubSvc any, orgName string, page, perPage int) ([]GitHubRepository, bool, error) {
+	ctx.Logger.Debugf("Fetching repositories page %d for organization %s", page, orgName)
+
+	resp, err := executeRepositoryRequest(ctx, githubSvc, orgName, page, perPage)
+	if err != nil {
+		return nil, false, err
+	}
+	defer resp.Body.Close()
+
+	if err := validateRepositoryResponse(ctx, resp, orgName, page); err != nil {
+		return nil, false, err
 	}
 
-	ctx.Logger.Infof("Successfully fetched %d repositories for organization %s", len(allRepos), orgName)
-	return allRepos, nil
+	repos, err := decodeRepositoryResponse(ctx, resp, orgName)
+	if err != nil {
+		return nil, false, err
+	}
+
+	ctx.Logger.Infof("Fetched %d repositories from page %d for organization %s", len(repos), page, orgName)
+	shouldContinue := len(repos) > 0 && len(repos) == perPage
+
+	return repos, shouldContinue, nil
+}
+
+// executeRepositoryRequest executes a repository API request
+func executeRepositoryRequest(ctx *gofr.Context, githubSvc any, orgName string, page, perPage int) (*http.Response, error) {
+	query := map[string]any{
+		"page":     fmt.Sprintf("%d", page),
+		"per_page": fmt.Sprintf("%d", perPage),
+		"sort":     "updated",
+	}
+
+	headers := buildGitHubRequestHeaders()
+	resp, err := githubSvc.(interface {
+		GetWithHeaders(ctx *gofr.Context, path string, query map[string]any, headers map[string]string) (*http.Response, error)
+	}).GetWithHeaders(ctx, fmt.Sprintf("orgs/%s/repos", orgName), query, headers)
+
+	if err != nil {
+		ctx.Logger.Errorf("Failed to fetch repositories for %s (page %d): %v", orgName, page, err)
+		return nil, &gofrhttp.ErrorRequestTimeout{}
+	}
+
+	return resp, nil
+}
+
+// validateRepositoryResponse validates the HTTP response from GitHub API
+func validateRepositoryResponse(ctx *gofr.Context, resp *http.Response, orgName string, page int) error {
+	ctx.Logger.Debugf("Repository API response status for %s (page %d): %d", orgName, page, resp.StatusCode)
+
+	if resp.StatusCode == http.StatusNotFound {
+		ctx.Logger.Warnf("No repositories found for organization: %s", orgName)
+		return &gofrhttp.ErrorEntityNotFound{
+			Name:  "organization_repositories",
+			Value: orgName,
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		ctx.Logger.Errorf("GitHub API returned error status %d for repositories of %s", resp.StatusCode, orgName)
+		return &gofrhttp.ErrorInvalidParam{
+			Params: []string{"github_api_status", fmt.Sprintf("status_code_%d", resp.StatusCode)},
+		}
+	}
+
+	return nil
+}
+
+// decodeRepositoryResponse decodes the JSON response into GitHubRepository slice
+func decodeRepositoryResponse(ctx *gofr.Context, resp *http.Response, orgName string) ([]GitHubRepository, error) {
+	var repos []GitHubRepository
+	if err := json.NewDecoder(resp.Body).Decode(&repos); err != nil {
+		ctx.Logger.Errorf("Failed to decode repositories response for %s: %v", orgName, err)
+		return nil, &gofrhttp.ErrorInvalidParam{
+			Params: []string{"response_format", err.Error()},
+		}
+	}
+
+	return repos, nil
+}
+
+// limitRepositories limits the number of repositories to maxRepos
+func limitRepositories(ctx *gofr.Context, allRepos []GitHubRepository, maxRepos int, orgName string) []GitHubRepository {
+	if len(allRepos) > maxRepos {
+		ctx.Logger.Infof("Limiting repositories from %d to %d for organization %s", len(allRepos), maxRepos, orgName)
+		return allRepos[:maxRepos]
+	}
+	return allRepos
 }
 
 // fetchGitHubTeamsWithService fetches teams using GoFr HTTP service
