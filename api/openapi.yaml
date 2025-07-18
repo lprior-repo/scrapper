@@ -124,6 +124,13 @@ paths:
           schema:
             type: string
             example: 'microsoft'
+        - name: useTopics
+          in: query
+          required: false
+          description: Use repository topics instead of teams for graph visualization
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: Graph data retrieved successfully
