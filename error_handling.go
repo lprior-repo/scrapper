@@ -62,7 +62,7 @@ func (e AppError) Unwrap() error {
 }
 
 // createAppError creates a new application error (Pure Core)
-func createAppError(errorType ErrorType, severity ErrorSeverity, code, message string) AppError {
+func createAppError(errorType ErrorType, severity ErrorSeverity, code, message string, timestamp time.Time) AppError {
 	if code == "" {
 		panic("Error code cannot be empty")
 	}
@@ -75,7 +75,7 @@ func createAppError(errorType ErrorType, severity ErrorSeverity, code, message s
 		Severity:    severity,
 		Message:     message,
 		Code:        code,
-		Timestamp:   time.Now(),
+		Timestamp:   timestamp,
 		Recoverable: determineRecoverability(errorType),
 		RetryAfter:  determineRetryDelay(errorType, severity),
 	}
@@ -122,44 +122,48 @@ func determineRetryDelay(errorType ErrorType, severity ErrorSeverity) time.Durat
 // Validation Errors
 
 // createValidationError creates a validation error (Pure Core)
-func createValidationError(field, message string) AppError {
+func createValidationError(field, message string, timestamp time.Time) AppError {
 	return createAppError(
 		ErrorTypeValidation,
 		SeverityMedium,
 		"VALIDATION_FAILED",
 		fmt.Sprintf("Validation failed for field '%s': %s", field, message),
+		timestamp,
 	)
 }
 
 // createRequiredFieldError creates a required field error (Pure Core)
-func createRequiredFieldError(field string) AppError {
+func createRequiredFieldError(field string, timestamp time.Time) AppError {
 	return createAppError(
 		ErrorTypeValidation,
 		SeverityMedium,
 		"REQUIRED_FIELD_MISSING",
 		fmt.Sprintf("Required field '%s' is missing or empty", field),
+		timestamp,
 	)
 }
 
 // createInvalidFormatError creates an invalid format error (Pure Core)
-func createInvalidFormatError(field, expectedFormat string) AppError {
+func createInvalidFormatError(field, expectedFormat string, timestamp time.Time) AppError {
 	return createAppError(
 		ErrorTypeValidation,
 		SeverityMedium,
 		"INVALID_FORMAT",
 		fmt.Sprintf("Field '%s' has invalid format. Expected: %s", field, expectedFormat),
+		timestamp,
 	)
 }
 
 // Network Errors
 
 // createNetworkError creates a network error (Pure Core)
-func createNetworkError(operation string, err error) AppError {
+func createNetworkError(operation string, err error, timestamp time.Time) AppError {
 	appErr := createAppError(
 		ErrorTypeNetwork,
 		SeverityHigh,
 		"NETWORK_ERROR",
 		fmt.Sprintf("Network error during %s", operation),
+		timestamp,
 	)
 	appErr.Cause = err
 	if err != nil {
@@ -169,36 +173,39 @@ func createNetworkError(operation string, err error) AppError {
 }
 
 // createTimeoutError creates a timeout error (Pure Core)
-func createTimeoutError(operation string, duration time.Duration) AppError {
+func createTimeoutError(operation string, duration time.Duration, timestamp time.Time) AppError {
 	return createAppError(
 		ErrorTypeTimeout,
 		SeverityHigh,
 		"OPERATION_TIMEOUT",
 		fmt.Sprintf("Operation '%s' timed out after %v", operation, duration),
+		timestamp,
 	)
 }
 
 // createRateLimitError creates a rate limit error (Pure Core)
-func createRateLimitError(resetTime time.Time, remaining int) AppError {
+func createRateLimitError(resetTime time.Time, remaining int, currentTime time.Time) AppError {
 	appErr := createAppError(
 		ErrorTypeRateLimit,
 		SeverityMedium,
 		"RATE_LIMIT_EXCEEDED",
 		fmt.Sprintf("Rate limit exceeded. %d requests remaining. Reset at %s", remaining, resetTime.Format(time.RFC3339)),
+		currentTime,
 	)
-	appErr.RetryAfter = time.Until(resetTime)
+	appErr.RetryAfter = resetTime.Sub(currentTime)
 	return appErr
 }
 
 // Database Errors
 
 // createDatabaseError creates a database error (Pure Core)
-func createDatabaseError(operation string, err error) AppError {
+func createDatabaseError(operation string, err error, timestamp time.Time) AppError {
 	appErr := createAppError(
 		ErrorTypeDatabase,
 		SeverityCritical,
 		"DATABASE_ERROR",
 		fmt.Sprintf("Database error during %s", operation),
+		timestamp,
 	)
 	appErr.Cause = err
 	if err != nil {
@@ -208,12 +215,13 @@ func createDatabaseError(operation string, err error) AppError {
 }
 
 // createConnectionError creates a database connection error (Pure Core)
-func createConnectionError(err error) AppError {
+func createConnectionError(err error, timestamp time.Time) AppError {
 	appErr := createAppError(
 		ErrorTypeDatabase,
 		SeverityCritical,
 		"DATABASE_CONNECTION_FAILED",
 		"Failed to connect to database",
+		timestamp,
 	)
 	appErr.Cause = err
 	if err != nil {
@@ -225,46 +233,50 @@ func createConnectionError(err error) AppError {
 // Authentication Errors
 
 // createAuthenticationError creates an authentication error (Pure Core)
-func createAuthenticationError(message string) AppError {
+func createAuthenticationError(message string, timestamp time.Time) AppError {
 	return createAppError(
 		ErrorTypeAuthentication,
 		SeverityHigh,
 		"AUTHENTICATION_FAILED",
 		message,
+		timestamp,
 	)
 }
 
 // createUnauthorizedError creates an unauthorized error (Pure Core)
-func createUnauthorizedError(resource string) AppError {
+func createUnauthorizedError(resource string, timestamp time.Time) AppError {
 	return createAppError(
 		ErrorTypeAuthentication,
 		SeverityHigh,
 		"UNAUTHORIZED_ACCESS",
 		fmt.Sprintf("Unauthorized access to resource: %s", resource),
+		timestamp,
 	)
 }
 
 // Not Found Errors
 
 // createNotFoundError creates a not found error (Pure Core)
-func createNotFoundError(resource, identifier string) AppError {
+func createNotFoundError(resource, identifier string, timestamp time.Time) AppError {
 	return createAppError(
 		ErrorTypeNotFound,
 		SeverityMedium,
 		"RESOURCE_NOT_FOUND",
 		fmt.Sprintf("%s with identifier '%s' not found", resource, identifier),
+		timestamp,
 	)
 }
 
 // Internal Errors
 
 // createInternalError creates an internal error (Pure Core)
-func createInternalError(operation string, err error) AppError {
+func createInternalError(operation string, err error, timestamp time.Time) AppError {
 	appErr := createAppError(
 		ErrorTypeInternal,
 		SeverityCritical,
 		"INTERNAL_ERROR",
 		fmt.Sprintf("Internal error during %s", operation),
+		timestamp,
 	)
 	appErr.Cause = err
 	if err != nil {
@@ -274,24 +286,26 @@ func createInternalError(operation string, err error) AppError {
 }
 
 // createConfigurationError creates a configuration error (Pure Core)
-func createConfigurationError(setting, issue string) AppError {
+func createConfigurationError(setting, issue string, timestamp time.Time) AppError {
 	return createAppError(
 		ErrorTypeInternal,
 		SeverityCritical,
 		"CONFIGURATION_ERROR",
 		fmt.Sprintf("Configuration error for setting '%s': %s", setting, issue),
+		timestamp,
 	)
 }
 
 // External Service Errors
 
 // createExternalServiceError creates an external service error (Pure Core)
-func createExternalServiceError(service, operation string, err error) AppError {
+func createExternalServiceError(service, operation string, err error, timestamp time.Time) AppError {
 	appErr := createAppError(
 		ErrorTypeExternal,
 		SeverityHigh,
 		"EXTERNAL_SERVICE_ERROR",
 		fmt.Sprintf("External service '%s' error during %s", service, operation),
+		timestamp,
 	)
 	appErr.Cause = err
 	if err != nil {
@@ -301,12 +315,13 @@ func createExternalServiceError(service, operation string, err error) AppError {
 }
 
 // createGitHubAPIError creates a GitHub API error (Pure Core)
-func createGitHubAPIError(operation string, statusCode int, message string) AppError {
+func createGitHubAPIError(operation string, statusCode int, message string, timestamp time.Time) AppError {
 	return createAppError(
 		ErrorTypeExternal,
 		SeverityHigh,
 		"GITHUB_API_ERROR",
 		fmt.Sprintf("GitHub API error during %s (HTTP %d): %s", operation, statusCode, message),
+		timestamp,
 	)
 }
 
@@ -432,7 +447,7 @@ func (e AggregatedError) Error() string {
 }
 
 // createAggregatedError creates an aggregated error from multiple errors (Pure Core)
-func createAggregatedError(operation string, errors []AppError) AggregatedError {
+func createAggregatedError(operation string, errors []AppError, timestamp time.Time) AggregatedError {
 	if operation == "" {
 		panic("Operation cannot be empty")
 	}
@@ -441,7 +456,7 @@ func createAggregatedError(operation string, errors []AppError) AggregatedError 
 	return AggregatedError{
 		Operation: operation,
 		Errors:    errors,
-		Timestamp: time.Now(),
+		Timestamp: timestamp,
 		Summary:   summary,
 	}
 }

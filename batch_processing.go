@@ -138,19 +138,19 @@ func getDefaultGitHubBatchOptions() GitHubBatchOptions {
 // validateGitHubBatchRequest validates a GitHub batch request (Pure Core)
 func validateGitHubBatchRequest(request GitHubBatchRequest) error {
 	if request.Organization == "" {
-		return createRequiredFieldError("organization")
+		return createRequiredFieldError("organization", time.Now())
 	}
 
 	if request.Options.MaxReposPerBatch <= 0 {
-		return createValidationError("max_repos_per_batch", "must be positive")
+		return createValidationError("max_repos_per_batch", "must be positive", time.Now())
 	}
 
 	if request.Options.MaxTeamsPerBatch <= 0 {
-		return createValidationError("max_teams_per_batch", "must be positive")
+		return createValidationError("max_teams_per_batch", "must be positive", time.Now())
 	}
 
 	if request.Options.Timeout <= 0 {
-		return createValidationError("timeout", "must be positive")
+		return createValidationError("timeout", "must be positive", time.Now())
 	}
 
 	return nil
@@ -237,24 +237,24 @@ func getDefaultDatabaseBatchOptions() DatabaseBatchOptions {
 // validateDatabaseBatchRequest validates a database batch request (Pure Core)
 func validateDatabaseBatchRequest(request DatabaseBatchRequest) error {
 	if len(request.Operations) == 0 {
-		return createValidationError("operations", "at least one operation is required")
+		return createValidationError("operations", "at least one operation is required", time.Now())
 	}
 
 	if request.Options.MaxBatchSize <= 0 {
-		return createValidationError("max_batch_size", "must be positive")
+		return createValidationError("max_batch_size", "must be positive", time.Now())
 	}
 
 	if request.Options.Timeout <= 0 {
-		return createValidationError("timeout", "must be positive")
+		return createValidationError("timeout", "must be positive", time.Now())
 	}
 
 	// Validate each operation
 	for i, op := range request.Operations {
 		if op.Type == "" {
-			return createValidationError(fmt.Sprintf("operations[%d].type", i), "cannot be empty")
+			return createValidationError(fmt.Sprintf("operations[%d].type", i), "cannot be empty", time.Now())
 		}
 		if op.Query == "" {
-			return createValidationError(fmt.Sprintf("operations[%d].query", i), "cannot be empty")
+			return createValidationError(fmt.Sprintf("operations[%d].query", i), "cannot be empty", time.Now())
 		}
 	}
 
@@ -477,13 +477,13 @@ func getDefaultConcurrentBatchConfig() ConcurrentBatchConfig {
 // validateConcurrentBatchConfig validates concurrent batch configuration (Pure Core)
 func validateConcurrentBatchConfig(config ConcurrentBatchConfig) error {
 	if config.MaxConcurrency <= 0 {
-		return createValidationError("max_concurrency", "must be positive")
+		return createValidationError("max_concurrency", "must be positive", time.Now())
 	}
 	if config.BatchSize <= 0 {
-		return createValidationError("batch_size", "must be positive")
+		return createValidationError("batch_size", "must be positive", time.Now())
 	}
 	if config.Timeout <= 0 {
-		return createValidationError("timeout", "must be positive")
+		return createValidationError("timeout", "must be positive", time.Now())
 	}
 	return nil
 }

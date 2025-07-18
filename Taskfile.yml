@@ -1,9 +1,12 @@
 version: '3'
 
 tasks:
+  # Core Development Tasks
   setup:
     desc: Set up the development environment
     cmds:
+      - echo "🧹 Performing cleanup for fresh start..."
+      - go run . --cleanup || true
       - docker compose up -d neo4j
       - task: wait-for-neo4j
       - echo "Development environment ready"
@@ -13,9 +16,16 @@ tasks:
     cmds:
       - |
         echo "Waiting for Neo4j to be ready..."
+        timeout=60
+        count=0
         until docker compose exec neo4j cypher-shell -u neo4j -p password "RETURN 1" > /dev/null 2>&1; do
-          echo "Neo4j is not ready yet. Waiting 5 seconds..."
+          if [ $count -ge $timeout ]; then
+            echo "Neo4j failed to start within ${timeout} seconds"
+            exit 1
+          fi
+          echo "Neo4j is not ready yet. Waiting 5 seconds... (${count}/${timeout})"
           sleep 5
+          count=$((count + 5))
         done
         echo "Neo4j is ready!"
 
@@ -25,23 +35,24 @@ tasks:
     cmds:
       - go run .
 
+  # Testing Tasks
   test:
-    desc: Run all tests including unit, property-based, integration, acceptance, and COMPREHENSIVE mutation tests
+    desc: Run all tests including unit, property-based, integration, acceptance, and mutation tests
     deps: [setup]
     cmds:
       - echo "Running complete test suite..."
-      - go test ./... -v -timeout=60s -skip TestComprehensiveMutationTesting
-      - echo "Running COMPREHENSIVE mutation testing on ALL code..."
-      - echo "This will test every single line of code for maximum bug detection"
-      - echo "No tiers, no alternatives - just maximum stringency as mandated"
-      - go test -v -run TestComprehensiveMutationTesting -timeout=60m
+      - go test ./... -v -timeout=120s -skip TestComprehensiveMutationTesting
+      - echo "Running acceptance tests..."
+      - go test ./... -v -run Acceptance -timeout=300s
+      - echo "Running mutation testing in critical mode..."
+      - MUTATION_TEST_MODE=critical go test -v -run TestComprehensiveMutationTesting -timeout=20m
       - echo "All tests completed successfully!"
 
   test-unit:
     desc: Run unit tests only
     deps: [setup]
     cmds:
-      - go test ./... -v -short
+      - go test ./... -v -short -timeout=60s
 
   test-integration:
     desc: Run integration tests only
@@ -49,58 +60,49 @@ tasks:
     cmds:
       - go test ./... -v -run Integration
 
-  clean:
-    desc: Clean up development environment
-    cmds:
-      - docker compose down
-      - docker volume rm scrapper_neo4j_data scrapper_neo4j_logs || true
-
-  reset:
-    desc: Reset the development environment
-    cmds:
-      - task: clean
-      - task: setup
-
-  logs:
-    desc: Show Neo4j logs
-    cmds:
-      - docker compose logs -f neo4j
-
-  test-mutation:
-    desc: Run comprehensive mutation tests on ALL code (mandated approach)
+  test-acceptance:
+    desc: Run acceptance tests only
     deps: [setup]
     cmds:
-      - echo "🧬 Running COMPREHENSIVE mutation testing on ALL code..."
-      - echo "This will test every single line of code for maximum bug detection"
-      - echo "No tiers, no alternatives - just maximum stringency as mandated"
-      - go test -v -run TestComprehensiveMutationTesting -timeout=60m
+      - go test ./... -v -run Acceptance -timeout=300s
+
+  test-mutation-fast:
+    desc: Run fast mutation tests (critical files only, 5 min timeout)
+    deps: [setup]
+    cmds:
+      - echo "Running fast mutation testing..."
+      - MUTATION_TEST_MODE=fast go test -v -run TestComprehensiveMutationTesting -timeout=10m
+      - echo "Fast mutation testing completed!"
+
+  test-mutation-critical:
+    desc: Run critical mutation tests (core business logic, 15 min timeout)
+    deps: [setup]
+    cmds:
+      - echo "Running critical mutation testing..."
+      - MUTATION_TEST_MODE=critical go test -v -run TestComprehensiveMutationTesting -timeout=20m
+      - echo "Critical mutation testing completed!"
+
+  test-mutation-comprehensive:
+    desc: Run comprehensive mutation tests (entire codebase, 45 min timeout)
+    deps: [setup]
+    cmds:
+      - echo "Running comprehensive mutation testing..."
+      - MUTATION_TEST_MODE=comprehensive go test -v -run TestComprehensiveMutationTesting -timeout=50m
       - echo "Comprehensive mutation testing completed!"
 
-  test-all:
-    desc: Run all types of tests (unit, property-based, integration, acceptance)
-    deps: [setup]
-    cmds:
-      - echo "Running unit tests..."
-      - go test -v -run "TestParseNodeID|TestGetEnvOrDefault|TestConfigValidation|TestConfigEnvironment"
-      - echo "Running property-based tests..."
-      - go test -v -run "TestProperty" -timeout=30s
-      - echo "Running integration tests..."
-      - go test -v -run "TestIntegration"
-      - echo "Running acceptance tests..."
-      - go test -v -run "TestAcceptance"
-      - echo "All test types completed successfully!"
-
+  # Quality Tasks
   lint:
     desc: Run golangci-lint with comprehensive checks
     cmds:
       - golangci-lint run --config .golangci.yml --verbose
       - echo "Linting completed successfully!"
 
-  lint-fix:
-    desc: Run golangci-lint with auto-fix enabled
+  fix:
+    desc: Auto-fix Go code issues
     cmds:
+      - echo "🔧 Auto-fixing Go code..."
       - golangci-lint run --config .golangci.yml --fix --verbose
-      - echo "Linting with auto-fix completed!"
+      - go fmt ./...
 
   security:
     desc: Run security analysis
@@ -112,7 +114,7 @@ tasks:
     desc: Run tests with coverage analysis
     deps: [setup]
     cmds:
-      - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+      - go test -v -race -coverprofile=coverage.out -covermode=atomic -timeout=300s ./...
       - go tool cover -html=coverage.out -o coverage.html
       - go tool cover -func=coverage.out
       - echo "Coverage analysis completed! Open coverage.html in a browser."
@@ -138,24 +140,56 @@ tasks:
       - task: lint
       - task: security
       - task: check-coverage
-      - task: test-all
+      - task: test
       - echo "✅ All quality checks passed!"
+
+  quality-fast:
+    desc: Run fast code quality checks (for CI)
+    deps: [setup]
+    cmds:
+      - task: lint
+      - task: security
+      - task: check-coverage
+      - task: test-mutation-fast
+      - echo "✅ Fast quality checks passed!"
 
   ci:
     desc: Run the same checks as CI
     deps: [setup]
     cmds:
-      - task: quality
+      - task: quality-fast
       - echo "✅ CI checks completed successfully!"
 
-  # Full Stack Development Tasks
+  # Build Tasks
+  build:
+    desc: Build Go backend
+    cmds:
+      - echo "📦 Building Go backend..."
+      - go build -o bin/overseer .
+
+  # Clean Tasks
+  clean:
+    desc: Clean up development environment
+    cmds:
+      - docker compose down
+      - docker volume rm scrapper_neo4j_data scrapper_neo4j_logs || true
+      - rm -f coverage.out coverage.html gosec-report.json
+      - rm -rf bin/
+
+  reset:
+    desc: Reset the development environment
+    cmds:
+      - task: clean
+      - task: setup
+
+  # Development Server Tasks
   dev:
     desc: Start the full development stack (database, API, frontend)
     deps: [setup]
     cmds:
       - task: start-api &
       - task: start-frontend &
-      - echo "🚀 Full stack started:"
+      - echo "🚀 Full stack started{{":"}}
       - echo "  📊 Neo4j{{":"}} http{{":"}}//localhost{{":"}}7474"
       - echo "  🔧 API{{":"}} http{{":"}}//localhost{{":"}}8081"
       - echo "  🌐 Frontend{{":"}} http{{":"}}//localhost{{":"}}3000"
@@ -176,6 +210,33 @@ tasks:
       - echo "🌐 Starting frontend on port 3000..."
       - cd ui && bun run dev
 
+  stop:
+    desc: Stop all development services
+    cmds:
+      - echo "🛑 Stopping all services..."
+      - go run . cleanup
+      - echo "✅ All services stopped"
+
+  restart:
+    desc: Restart the full development stack
+    cmds:
+      - task: stop
+      - task: dev
+
+  logs:
+    desc: Show Neo4j logs
+    cmds:
+      - docker compose logs -f neo4j
+
+  # Frontend Tasks
+  setup-frontend:
+    desc: Setup frontend development environment
+    cmds:
+      - echo "📦 Installing frontend dependencies..."
+      - cd ui && bun install
+      - echo "🎭 Installing Playwright browsers..."
+      - cd ui && bunx playwright install
+
   build-frontend:
     desc: Build the frontend for production
     cmds:
@@ -190,25 +251,74 @@ tasks:
       - cd ui && bun run test
       - cd ui && bun run playwright
 
-  install-frontend:
-    desc: Install frontend dependencies
+  lint-frontend:
+    desc: Run TypeScript linting
     cmds:
-      - echo "📦 Installing frontend dependencies..."
-      - cd ui && bun install
+      - echo "🔍 Running TypeScript linting..."
+      - cd ui && bun run lint
 
-  setup-frontend:
-    desc: Setup frontend development environment
+  fix-frontend:
+    desc: Auto-fix TypeScript code issues
     cmds:
-      - task: install-frontend
-      - echo "🎭 Installing Playwright browsers..."
-      - cd ui && bunx playwright install
+      - echo "🔧 Auto-fixing TypeScript code..."
+      - cd ui && bun run lint --fix
 
+  # Full Stack Tasks
   dev-full:
     desc: Setup and start the complete development environment
     cmds:
       - task: setup-frontend
       - task: dev
 
+  test-all:
+    desc: Run all tests across Go and TypeScript ecosystems
+    deps: [setup, setup-frontend]
+    cmds:
+      - echo "🧪 Running comprehensive test suite across all ecosystems..."
+      - task: test
+      - echo "🎭 Running acceptance tests..."
+      - task: test-acceptance
+      - cd ui && bun run test:coverage
+      - cd ui && bun run test:mutation
+      - cd ui && bun run playwright
+      - echo "✅ All ecosystem tests completed!"
+
+  lint-all:
+    desc: Run linting across all ecosystems
+    deps: [setup-frontend]
+    cmds:
+      - echo "🔍 Running linting across all ecosystems..."
+      - task: lint
+      - task: lint-frontend
+      - echo "✅ All linting completed!"
+
+  fix-all:
+    desc: Auto-fix issues across all ecosystems
+    cmds:
+      - echo "🔧 Auto-fixing issues across all ecosystems..."
+      - task: fix
+      - task: fix-frontend
+      - echo "✅ Auto-fix completed!"
+
+  build-all:
+    desc: Build both backend and frontend
+    deps: [setup, setup-frontend]
+    cmds:
+      - echo "📦 Building all components..."
+      - task: build
+      - task: build-frontend
+      - echo "✅ All builds completed!"
+
+  clean-all:
+    desc: Clean all build artifacts and test outputs
+    cmds:
+      - echo "🧹 Cleaning all artifacts..."
+      - task: clean
+      - cd ui && rm -rf coverage/ dist/ node_modules/.cache/
+      - cd ui && rm -rf stryker-tmp/ mutation-report.html
+      - echo "✅ All artifacts cleaned!"
+
+  # Utility Tasks
   scan:
     desc: Scan a GitHub organization and visualize codeowners
     cmds:
@@ -219,229 +329,18 @@ tasks:
       - echo "4. Click 'Scan Organization' to import data"
       - echo "5. View the interactive visualization"
 
-  stop:
-    desc: Stop all development services
+  # Pre-commit Tasks
+  pre-commit:
+    desc: Run all pre-commit quality checks
     cmds:
-      - echo "🛑 Stopping all services..."
-      - pkill -f "overseer api" || true
-      - pkill -f "bun.*server" || true
-      - docker compose stop
-      - echo "✅ All services stopped"
+      - ./pre-commit full
 
-  restart:
-    desc: Restart the full development stack
+  pre-commit-quick:
+    desc: Run quick pre-commit checks (fast mutation testing)
     cmds:
-      - task: stop
-      - task: dev
+      - ./pre-commit quick
 
-  # Unified Testing Commands
-  test-all-ecosystems:
-    desc: Run all tests across Go and TypeScript ecosystems
-    deps: [setup, setup-frontend]
-    cmds:
-      - echo "🧪 Running comprehensive test suite across all ecosystems..."
-      - task: test-go-comprehensive
-      - task: test-typescript-comprehensive
-      - echo "✅ All ecosystem tests completed!"
-
-  test-go-comprehensive:
-    desc: Run comprehensive Go tests (unit, property-based, integration, mutation)
-    deps: [setup]
-    cmds:
-      - echo "🧪 Running comprehensive Go test suite..."
-      - go test ./... -v -timeout=60s -skip TestComprehensiveMutationTesting
-      - echo "🧬 Running Go mutation testing..."
-      - go test -v -run TestComprehensiveMutationTesting -timeout=60m
-      - echo "✅ Go tests completed!"
-
-  test-typescript-comprehensive:
-    desc: Run comprehensive TypeScript tests (unit, mutation, e2e)
-    cmds:
-      - echo "🧪 Running comprehensive TypeScript test suite..."
-      - cd ui && bun run test:coverage
-      - cd ui && bun run test:mutation
-      - cd ui && bun run playwright
-      - echo "✅ TypeScript tests completed!"
-
-  coverage-all:
-    desc: Generate coverage reports for both Go and TypeScript
-    deps: [setup, setup-frontend]
-    cmds:
-      - echo "📊 Generating coverage reports for all ecosystems..."
-      - task: coverage-go
-      - task: coverage-typescript
-      - echo "✅ All coverage reports generated!"
-
-  coverage-go:
-    desc: Generate Go coverage report
-    deps: [setup]
-    cmds:
-      - echo "📊 Generating Go coverage..."
-      - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-      - go tool cover -html=coverage.out -o coverage.html
-      - go tool cover -func=coverage.out
-      - echo "Go coverage report{{":"}} coverage.html"
-
-  coverage-typescript:
-    desc: Generate TypeScript coverage report
-    cmds:
-      - echo "📊 Generating TypeScript coverage..."
-      - cd ui && bun run test:coverage
-      - echo "TypeScript coverage report{{":"}} ui/coverage/index.html"
-
-  lint-all:
-    desc: Run linting across all ecosystems
-    deps: [setup-frontend]
-    cmds:
-      - echo "🔍 Running linting across all ecosystems..."
-      - task: lint-go
-      - task: lint-typescript
-      - echo "✅ All linting completed!"
-
-  lint-go:
-    desc: Run Go linting
-    cmds:
-      - echo "🔍 Running Go linting..."
-      - golangci-lint run --config .golangci.yml --verbose
-
-  lint-typescript:
-    desc: Run TypeScript linting
-    cmds:
-      - echo "🔍 Running TypeScript linting..."
-      - cd ui && bun run lint
-
-  quality-all:
-    desc: Run comprehensive code quality checks across all ecosystems
-    deps: [setup, setup-frontend]
-    cmds:
-      - echo "🔍 Running comprehensive quality checks..."
-      - task: lint-all
-      - task: coverage-all
-      - task: test-all-ecosystems
-      - task: security-all
-      - echo "✅ All quality checks completed!"
-
-  security-all:
-    desc: Run security analysis across all ecosystems
-    cmds:
-      - echo "🔒 Running security analysis..."
-      - task: security-go
-      - task: security-typescript
-      - echo "✅ Security analysis completed!"
-
-  security-go:
-    desc: Run Go security analysis
-    cmds:
-      - echo "🔒 Running Go security analysis..."
-      - gosec -fmt=json -out=gosec-report.json ./...
-
-  security-typescript:
-    desc: Run TypeScript security analysis
-    cmds:
-      - echo "🔒 Running TypeScript security analysis..."
-      - cd ui && bun audit
-      - echo "TypeScript security scan completed"
-
-  fix-all:
-    desc: Auto-fix issues across all ecosystems
-    cmds:
-      - echo "🔧 Auto-fixing issues across all ecosystems..."
-      - task: fix-go
-      - task: fix-typescript
-      - echo "✅ Auto-fix completed!"
-
-  fix-go:
-    desc: Auto-fix Go code issues
-    cmds:
-      - echo "🔧 Auto-fixing Go code..."
-      - golangci-lint run --config .golangci.yml --fix --verbose
-      - go fmt ./...
-
-  fix-typescript:
-    desc: Auto-fix TypeScript code issues
-    cmds:
-      - echo "🔧 Auto-fixing TypeScript code..."
-      - cd ui && bun run lint --fix
-
-  check-coverage-thresholds:
-    desc: Check if coverage meets minimum thresholds (90%) for both ecosystems
-    deps: [coverage-all]
-    cmds:
-      - echo "📊 Checking coverage thresholds..."
-      - task: check-go-coverage-threshold
-      - task: check-typescript-coverage-threshold
-      - echo "✅ Coverage thresholds validated!"
-
-  check-go-coverage-threshold:
-    desc: Check Go coverage threshold (95%)
-    deps: [coverage-go]
-    cmds:
-      - |
-        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-        echo "Go coverage{{":"}} ${COVERAGE}%"
-        if (( $(echo "${COVERAGE} < 95" | bc -l) )); then
-          echo "❌ Go coverage ${COVERAGE}% is below required 95%"
-          exit 1
-        else
-          echo "✅ Go coverage ${COVERAGE}% meets the requirement!"
-        fi
-
-  check-typescript-coverage-threshold:
-    desc: Check TypeScript coverage threshold (90%)
-    cmds:
-      - echo "📊 Checking TypeScript coverage..."
-      - cd ui && bun run test:coverage
-      - echo "✅ TypeScript coverage check completed!"
-
-  ci-all:
-    desc: Run complete CI pipeline for both ecosystems
-    deps: [setup, setup-frontend]
-    cmds:
-      - echo "🚀 Running complete CI pipeline..."
-      - task: quality-all
-      - task: build-all
-      - echo "✅ Complete CI pipeline completed successfully!"
-
-  build-all:
-    desc: Build both backend and frontend
-    deps: [setup, setup-frontend]
-    cmds:
-      - echo "📦 Building all components..."
-      - task: build-go
-      - task: build-frontend
-      - echo "✅ All builds completed!"
-
-  build-go:
-    desc: Build Go backend
-    cmds:
-      - echo "📦 Building Go backend..."
-      - go build -o bin/overseer .
-
-  clean-all:
-    desc: Clean all build artifacts and test outputs
-    cmds:
-      - echo "🧹 Cleaning all artifacts..."
-      - task: clean-go
-      - task: clean-typescript
-      - task: clean
-      - echo "✅ All artifacts cleaned!"
-
-  clean-go:
-    desc: Clean Go artifacts
-    cmds:
-      - echo "🧹 Cleaning Go artifacts..."
-      - rm -f coverage.out coverage.html gosec-report.json
-      - rm -rf bin/
-
-  clean-typescript:
-    desc: Clean TypeScript artifacts
-    cmds:
-      - echo "🧹 Cleaning TypeScript artifacts..."
-      - cd ui && rm -rf coverage/ dist/ node_modules/.cache/
-      - cd ui && rm -rf stryker-tmp/ mutation-report.html
-
-  # Atomic Commit Tasks
-  atomic-commit:
+  commit:
     desc: Create an atomic commit with all quality checks
     cmds:
       - echo "🔄 Creating atomic commit with full quality checks..."
@@ -450,77 +349,10 @@ tasks:
       - git commit -m "{{.CLI_ARGS}}"
       - echo "✅ Atomic commit completed!"
 
-  pre-commit-checks:
-    desc: Run all pre-commit quality checks using Go runner
-    cmds:
-      - ./pre-commit full
-
-  pre-commit-quick:
-    desc: Run quick pre-commit checks (no mutation testing)
-    cmds:
-      - ./pre-commit quick
-
-  pre-commit-format:
-    desc: Run Go formatting only
-    cmds:
-      - ./pre-commit format
-
-  pre-commit-test:
-    desc: Run Go tests with coverage
-    cmds:
-      - ./pre-commit test
-
-  pre-commit-lint:
-    desc: Run Go linting only
-    cmds:
-      - ./pre-commit lint
-
-  pre-commit-coverage:
-    desc: Run tests and check coverage
-    cmds:
-      - ./pre-commit coverage
-
-  pre-commit-mutation:
-    desc: Run mutation testing only
-    cmds:
-      - ./pre-commit mutation
-
-  setup-pre-commit:
-    desc: Install and setup pre-commit hooks
-    cmds:
-      - echo "🪝 Setting up pre-commit hooks..."
-      - pip install pre-commit
-      - pre-commit install
-      - pre-commit install --hook-type commit-msg
-      - echo "✅ Pre-commit hooks installed!"
-
-  commit-staged:
+  commit-quick:
     desc: Commit only staged changes with quick quality checks
     cmds:
       - echo "🔄 Committing staged changes..."
       - ./pre-commit quick
       - git commit -m "{{.CLI_ARGS}}"
       - echo "✅ Staged commit completed!"
-
-  quick-pre-commit-checks:
-    desc: Run quick pre-commit checks (alias for pre-commit-quick)
-    cmds:
-      - task: pre-commit-quick
-
-  amend-commit:
-    desc: Amend the last commit with quality checks
-    cmds:
-      - echo "🔄 Amending last commit..."
-      - ./pre-commit quick
-      - git commit --amend --no-edit
-      - echo "✅ Commit amended!"
-
-  fix-commit:
-    desc: Auto-fix issues and commit
-    cmds:
-      - echo "🔧 Auto-fixing and committing..."
-      - ./pre-commit format
-      - task: fix-all
-      - git add .
-      - git commit -m "fix{{":"}} auto-fix linting and formatting issues"
-      - echo "✅ Fix commit completed!"

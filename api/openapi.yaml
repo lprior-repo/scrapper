@@ -1,0 +1,347 @@
+openapi: 3.0.3
+info:
+  title: GitHub Codeowners Visualization API
+  description: API for scanning GitHub organizations and visualizing codeowners relationships
+  version: 1.0.0
+  contact:
+    name: API Support
+    url: https://github.com/your-org/scrapper
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+
+paths:
+  /api/health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the API and its dependencies
+      operationId: healthCheck
+      tags:
+        - System
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: "healthy"
+                      database:
+                        type: string
+                        example: "connected"
+                      version:
+                        type: string
+                        example: "1.0.0"
+                      timestamp:
+                        type: string
+                        format: date-time
+                        example: "2025-07-17T21:08:23-05:00"
+        '500':
+          description: System is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/scan/{org}:
+    post:
+      summary: Scan GitHub organization
+      description: Scans a GitHub organization for repositories, teams, and CODEOWNERS files
+      operationId: scanOrganization
+      tags:
+        - Scanning
+      parameters:
+        - name: org
+          in: path
+          required: true
+          description: GitHub organization name
+          schema:
+            type: string
+            example: "microsoft"
+        - name: max_repos
+          in: query
+          required: false
+          description: Maximum number of repositories to scan
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+        - name: max_teams
+          in: query
+          required: false
+          description: Maximum number of teams to scan
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: Scan completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ScanResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/graph/{org}:
+    get:
+      summary: Get organization graph data
+      description: Retrieves graph visualization data for a previously scanned organization
+      operationId: getOrganizationGraph
+      tags:
+        - Visualization
+      parameters:
+        - name: org
+          in: path
+          required: true
+          description: GitHub organization name
+          schema:
+            type: string
+            example: "microsoft"
+      responses:
+        '200':
+          description: Graph data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/GraphResponse'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/stats/{org}:
+    get:
+      summary: Get organization statistics
+      description: Retrieves statistics for a previously scanned organization
+      operationId: getOrganizationStats
+      tags:
+        - Statistics
+      parameters:
+        - name: org
+          in: path
+          required: true
+          description: GitHub organization name
+          schema:
+            type: string
+            example: "microsoft"
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/StatsResponse'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    ScanResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the scan was successful
+        organization:
+          type: string
+          description: Name of the scanned organization
+        summary:
+          $ref: '#/components/schemas/ScanSummary'
+        errors:
+          type: array
+          items:
+            type: string
+          description: List of errors encountered during scanning
+        data:
+          type: object
+          description: Raw scan data including organization, repositories, teams, and codeowners
+
+    ScanSummary:
+      type: object
+      properties:
+        total_repos:
+          type: integer
+          description: Total number of repositories scanned
+        repos_with_codeowners:
+          type: integer
+          description: Number of repositories with CODEOWNERS files
+        total_teams:
+          type: integer
+          description: Total number of teams found
+        unique_owners:
+          type: array
+          items:
+            type: string
+          description: List of unique codeowners
+        api_calls_used:
+          type: integer
+          description: Number of GitHub API calls used
+        processing_time_ms:
+          type: integer
+          format: int64
+          description: Processing time in milliseconds
+
+    GraphResponse:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/GraphNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/GraphEdge'
+
+    GraphNode:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique node identifier
+        type:
+          type: string
+          description: Node type (organization, repository, team, user)
+          enum: [organization, repository, team, user]
+        label:
+          type: string
+          description: Display label for the node
+        data:
+          type: object
+          description: Additional node data
+        position:
+          $ref: '#/components/schemas/GraphPosition'
+
+    GraphEdge:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique edge identifier
+        source:
+          type: string
+          description: Source node ID
+        target:
+          type: string
+          description: Target node ID
+        type:
+          type: string
+          description: Edge type (owns, member_of, codeowner)
+          enum: [owns, member_of, codeowner]
+        label:
+          type: string
+          description: Display label for the edge
+
+    GraphPosition:
+      type: object
+      properties:
+        x:
+          type: number
+          format: float
+          description: X coordinate
+        y:
+          type: number
+          format: float
+          description: Y coordinate
+
+    StatsResponse:
+      type: object
+      properties:
+        organization:
+          type: string
+          description: Organization name
+        total_repositories:
+          type: integer
+          description: Total number of repositories
+        total_teams:
+          type: integer
+          description: Total number of teams
+        total_users:
+          type: integer
+          description: Total number of users
+        total_codeowners:
+          type: integer
+          description: Total number of codeowners entries
+        codeowner_coverage:
+          type: string
+          description: Percentage of repositories with codeowners
+        last_scan_time:
+          type: string
+          format: date-time
+          description: Timestamp of last scan
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+              description: Error message
+            code:
+              type: string
+              description: Error code (optional)
+
+tags:
+  - name: System
+    description: System health and status operations
+  - name: Scanning
+    description: GitHub organization scanning operations
+  - name: Visualization
+    description: Graph visualization data operations
+  - name: Statistics
+    description: Organization statistics operations
+
+security: []

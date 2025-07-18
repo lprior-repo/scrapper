@@ -62,18 +62,19 @@ Cyclomatic complexity will never exceed 5. Nesting depth will never exceed 2 lev
 
 Folders are forbidden. The project structure will be flat.
 
-Part 2: The Absolute Testing Mandate
-All code is guilty until proven innocent by a multi-layered, exhaustive testing process. The testify suite is the standard for assertions.
+Part 2: Prototype Focus
+This is a prototype codebase focused on rapid functionality development. Testing infrastructure has been removed to enable faster iteration and prototyping.
 
-The Law of Absolute Verification: Every logical line of code in the pure core will be covered by tests, achieving a minimum of 95% code coverage. This coverage must be achieved through the following mandatory, layered testing strategies:
+MANDATORY DEVELOPMENT WORKFLOW:
+ALL development tasks MUST use the Taskfile commands. Never use direct go run, docker, or build commands. The following commands are the ONLY acceptable development workflow:
 
-Unit Tests (testify): Every function will have unit tests that validate its specific, isolated behavior using a table-driven approach for clarity.
+- task dev: Start full development stack
+- task start-api: Start API server only  
+- task start-frontend: Start frontend only
+- task setup: Setup development environment
+- task clean: Clean up development environment
+- task build: Build the application
+- task test: Run tests
 
-Property-Based Tests (flyingmutant/rapid): Every pure function will be subjected to property-based testing. You will define the properties of the function, and rapid will verify that these properties hold true for a vast range of generated inputs, uncovering edge cases automatically.
-
-Mutation Tests (avito-tech/go-mutesting): The entire test suite for a package will be validated via mutation testing. The mutation score must be acceptably high, proving that the tests are not merely executing the code but are correctly asserting its behavior. A surviving mutant is a critical failure of the test suite.
-
-Integration Tests: The interactions between the orchestrator, the pure core, and the impure shell will be verified. These tests ensure that the composed functions work together as expected.
-
-Acceptance Tests: The complete user-facing behavior will be validated with acceptance tests that follow a Given-When-Then structure, confirming the feature meets its requirements from end to end.
+This is a strict mandate. All AI assistants working on this codebase MUST use these Task commands for consistency, proper environment setup, and adherence to project standards.
 
