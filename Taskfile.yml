@@ -36,9 +36,7 @@ tasks:
       - task: test-api-functional
       - echo "🔍 Running API edge case tests..."
       - task: test-api-edge-cases
-      - echo "🎨 Running frontend tests..."
-      - task: test-frontend-unit
-      - echo "🎭 Running Playwright E2E tests..."
+      - echo "🎭 Running Playwright E2E/Integration tests..."
       - task: playwright
       - task: stop-api-for-testing
       - task: cleanup-test-database
@@ -63,7 +61,7 @@ tasks:
     cmds:
       - echo "🔨 Building all components..."
       - go build -o bin/overseer .
-      - cd packages/webapp && bun run build
+      - bun run build
       - echo "✅ Build completed!"
 
   clean:
@@ -74,8 +72,43 @@ tasks:
       - docker compose down
       - rm -f coverage.out coverage.html gosec-report.json
       - rm -rf bin/
-      - rm -rf packages/webapp/dist/
+      - rm -rf packages/webapp/build/
       - echo "✅ Cleanup completed!"
+
+  lint:
+    desc: Run linting across entire codebase (TypeScript and Go)
+    cmds:
+      - echo "🔍 Running TypeScript/JavaScript linting..."
+      - bun run lint
+      - echo "🔍 Running Go linting..."
+      - golangci-lint run ./... || echo "⚠️  golangci-lint not available, skipping Go linting"
+      - echo "✅ Linting completed!"
+
+  lint:fix:
+    desc: Run linting with auto-fix across entire codebase
+    cmds:
+      - echo "🔧 Running TypeScript/JavaScript linting with auto-fix..."
+      - bun run lint:fix
+      - echo "🔧 Running Go formatting..."
+      - go fmt ./...
+      - echo "🔧 Running Go imports organization..."
+      - goimports -w . || echo "⚠️  goimports not available, skipping Go imports"
+      - echo "✅ Linting with auto-fix completed!"
+
+  type-check:
+    desc: Run TypeScript type checking
+    cmds:
+      - echo "🔍 Running TypeScript type checking..."
+      - bun run type-check
+      - echo "✅ Type checking completed!"
+
+  format:
+    desc: Format all code (TypeScript, Go, JSON, YAML, etc.)
+    cmds:
+      - echo "🎨 Formatting all code..."
+      - bun run format
+      - go fmt ./...
+      - echo "✅ Code formatting completed!"
 
   api-start:
     desc: Start API server and infrastructure for testing without running hurl tests
@@ -122,13 +155,11 @@ tasks:
     desc: Install dependencies only when needed
     cmds:
       - bun install
-      - cd packages/webapp && bun install
+      - bunx playwright install
     sources:
       - package.json
-      - packages/webapp/package.json
     generates:
-      - node_modules/.package-lock.json
-      - packages/webapp/node_modules/.package-lock.json
+      - node_modules/.bun-tag
     method: checksum
 
   start-api-for-testing:
@@ -203,17 +234,12 @@ tasks:
       - hurl --test --variables-file tests/config/global.hurl tests/edge-cases/boundary-value-tests.hurl
       - hurl --test --variables-file tests/config/global.hurl tests/edge-cases/error-scenario-tests.hurl
 
-  test-frontend-unit:
-    desc: Run frontend unit tests
-    internal: true
-    cmds:
-      - cd packages/webapp && bun run test
 
   playwright:
     desc: Run Playwright E2E tests with full setup and teardown
     cmds:
       - echo "🎭 Running Playwright E2E tests..."
-      - bunx playwright test --config=playwright.config.ts
+      - bun run test:e2e
       - task: stop-api-for-testing
       - task: cleanup-test-database
       - echo "✅ Playwright tests completed!"

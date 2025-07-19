@@ -1,13 +1,100 @@
 import React, { useState } from 'react'
 import { GraphCanvas } from './components/GraphCanvas'
 
-const AppHeader: React.FC<{
-  organization: string
-  onOrganizationChange: (org: string) => void
-  onScan: () => void
-  useTopics: boolean
-  onUseTopicsChange: (useTopics: boolean) => void
-}> = ({
+interface IAppHeaderProps {
+  readonly organization: string
+  readonly onOrganizationChange: (org: string) => void
+  readonly onScan: () => void
+  readonly useTopics: boolean
+  readonly onUseTopicsChange: (useTopics: boolean) => void
+}
+
+const OrganizationInput: React.FC<{
+  readonly value: string
+  readonly onChange: (value: string) => void
+}> = ({ value, onChange }) => (
+  <input
+    type="text"
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    placeholder="Enter organization name"
+    style={{
+      padding: '0.5rem 1rem',
+      borderRadius: '6px',
+      border: '1px solid #30363d',
+      backgroundColor: '#0d1117',
+      color: '#c9d1d9',
+      fontSize: '14px',
+      width: '200px',
+    }}
+  />
+)
+
+const TopicsToggle: React.FC<{
+  readonly checked: boolean
+  readonly onChange: (checked: boolean) => void
+}> = ({ checked, onChange }) => (
+  <label
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+      color: '#c9d1d9',
+      fontSize: '14px',
+      cursor: 'pointer',
+      userSelect: 'none',
+    }}
+  >
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      style={{
+        width: '16px',
+        height: '16px',
+        accentColor: '#238636',
+        cursor: 'pointer',
+      }}
+    />
+    Use Topics instead of Teams
+  </label>
+)
+
+const LoadButton: React.FC<{
+  readonly onClick: () => void
+  readonly organization: string
+}> = ({ onClick, organization }) => {
+  const [isHovered, setIsHovered] = useState(false)
+  
+  const getBackgroundColor = () => {
+    if (!organization) return '#21262d'
+    return isHovered ? '#2ea043' : '#238636'
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={!organization}
+      style={{
+        padding: '0.5rem 1.5rem',
+        borderRadius: '6px',
+        border: 'none',
+        backgroundColor: getBackgroundColor(),
+        color: organization ? '#ffffff' : '#8b949e',
+        fontSize: '14px',
+        fontWeight: 500,
+        cursor: organization ? 'pointer' : 'not-allowed',
+        transition: 'all 0.2s',
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      Load Graph
+    </button>
+  )
+}
+
+const AppHeader: React.FC<IAppHeaderProps> = ({
   organization,
   onOrganizationChange,
   onScan,
@@ -49,74 +136,9 @@ const AppHeader: React.FC<{
         alignItems: 'center',
       }}
     >
-      <input
-        type="text"
-        value={organization}
-        onChange={(e) => onOrganizationChange(e.target.value)}
-        placeholder="Enter organization name"
-        style={{
-          padding: '0.5rem 1rem',
-          borderRadius: '6px',
-          border: '1px solid #30363d',
-          backgroundColor: '#0d1117',
-          color: '#c9d1d9',
-          fontSize: '14px',
-          width: '200px',
-        }}
-      />
-
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          color: '#c9d1d9',
-          fontSize: '14px',
-          cursor: 'pointer',
-          userSelect: 'none',
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={useTopics}
-          onChange={(e) => onUseTopicsChange(e.target.checked)}
-          style={{
-            width: '16px',
-            height: '16px',
-            accentColor: '#238636',
-            cursor: 'pointer',
-          }}
-        />
-        Use Topics instead of Teams
-      </label>
-
-      <button
-        onClick={onScan}
-        disabled={!organization}
-        style={{
-          padding: '0.5rem 1.5rem',
-          borderRadius: '6px',
-          border: 'none',
-          backgroundColor: organization ? '#238636' : '#21262d',
-          color: organization ? '#ffffff' : '#8b949e',
-          fontSize: '14px',
-          fontWeight: 500,
-          cursor: organization ? 'pointer' : 'not-allowed',
-          transition: 'all 0.2s',
-        }}
-        onMouseEnter={(e) => {
-          if (organization) {
-            e.currentTarget.style.backgroundColor = '#2ea043'
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (organization) {
-            e.currentTarget.style.backgroundColor = '#238636'
-          }
-        }}
-      >
-        Load Graph
-      </button>
+      <OrganizationInput value={organization} onChange={onOrganizationChange} />
+      <TopicsToggle checked={useTopics} onChange={onUseTopicsChange} />
+      <LoadButton onClick={onScan} organization={organization} />
     </div>
   </header>
 )

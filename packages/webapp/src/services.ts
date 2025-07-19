@@ -1,47 +1,19 @@
-import { Context, Effect, Layer } from 'effect'
-import { Schema, ParseResult } from '@effect/schema'
-import { UnknownException } from 'effect/Cause'
+import { Context, Effect, Layer } from 'effect';
+import { ParseResult } from '@effect/schema';
+import { UnknownException } from 'effect/Cause';
+import { 
+  GraphResponseSchema,
+  validateApiResponseSync,
+  type GraphNode,
+  type GraphEdge,
+  type GraphResponse,
+} from '@overseer/shared';
 
-// Graph Data Types
-export const GraphNode = Schema.Struct({
-  id: Schema.String,
-  type: Schema.String,
-  label: Schema.String,
-  data: Schema.Record(Schema.String, Schema.Unknown),
-  position: Schema.Struct({
-    x: Schema.Number,
-    y: Schema.Number,
-  }),
-})
-
-export type GraphNode = Schema.Schema.Type<typeof GraphNode>
-
-export const GraphEdge = Schema.Struct({
-  id: Schema.String,
-  source: Schema.String,
-  target: Schema.String,
-  type: Schema.String,
-  label: Schema.String,
-})
-
-export type GraphEdge = Schema.Schema.Type<typeof GraphEdge>
-
-export const GraphTopic = Schema.Struct({
-  name: Schema.String,
-  count: Schema.Number,
-})
-
-export type GraphTopic = Schema.Schema.Type<typeof GraphTopic>
-
-export const GraphResponse = Schema.Struct({
-  nodes: Schema.Array(GraphNode),
-  edges: Schema.Array(GraphEdge),
-})
-
-export type GraphResponse = Schema.Schema.Type<typeof GraphResponse>
+// Re-export types for compatibility
+export type { GraphNode, GraphEdge, GraphResponse };
 
 // Utility functions
-export const extractTopicsFromNodes = (nodes: GraphNode[]): GraphTopic[] => {
+export const extractTopicsFromNodes = (nodes: readonly GraphNode[]): readonly GraphTopic[] => {
   return nodes
     .filter((node) => node.type === 'topic')
     .map((node) => ({
@@ -51,10 +23,16 @@ export const extractTopicsFromNodes = (nodes: GraphNode[]): GraphTopic[] => {
 }
 
 export const extractNodesByType = (
-  nodes: GraphNode[],
+  nodes: readonly GraphNode[],
   type: string
-): GraphNode[] => {
+): readonly GraphNode[] => {
   return nodes.filter((node) => node.type === type)
+}
+
+// Graph topic type for utility functions  
+export interface GraphTopic {
+  readonly name: string;
+  readonly count: number;
 }
 
 // API Client Service
@@ -74,7 +52,7 @@ export const ApiClientLive = Layer.succeed(
     getGraph: (org: string, useTopics?: boolean) =>
       Effect.gen(function* () {
         const baseUrl = 'http://localhost:8081' // Your Go backend URL
-        const url = `${baseUrl}/api/graph/${org}${useTopics ? '?use_topics=true' : ''}`
+        const url = `${baseUrl}/api/graph/${org}${useTopics ? '?useTopics=true' : ''}`
 
         const response = yield* Effect.tryPromise(() =>
           fetch(url, {
@@ -85,9 +63,14 @@ export const ApiClientLive = Layer.succeed(
           })
         )
 
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
         const json = yield* Effect.tryPromise(() => response.json())
 
-        return yield* Schema.decodeUnknown(GraphResponse)(json)
+        // Use the shared schema validation
+        return validateApiResponseSync(GraphResponseSchema, json, `Graph API response for ${org}`)
       }),
   })
 )

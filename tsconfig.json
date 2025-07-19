@@ -1,17 +1,6 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ES2022"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "composite": true,
     "incremental": true,
     "baseUrl": ".",
@@ -20,7 +9,9 @@
     }
   },
   "references": [
-    { "path": "./packages/ingestor" },
+    { "path": "./packages/shared" },
     { "path": "./packages/webapp" }
-  ]
+  ],
+  "include": [],
+  "exclude": ["node_modules"]
 }

@@ -5,13 +5,9 @@
     "rootDir": "./src",
     "outDir": "./build",
     "composite": true,
-    "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["bun-types", "react", "react-dom"],
-    "paths": {
-      "@/*": ["./src/*"],
-      "@overseer/shared": ["../shared/src/schemas"]
-    }
+    "declaration": true,
+    "declarationMap": true,
+    "lib": ["ES2022"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "build"]

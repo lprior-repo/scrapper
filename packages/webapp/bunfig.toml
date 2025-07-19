@@ -1,0 +1,4 @@
+[test]
+# Use happy-dom for DOM environment in tests
+preload = ["./src/test/setup.ts"]
+timeout = 5000
