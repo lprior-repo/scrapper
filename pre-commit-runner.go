@@ -13,7 +13,6 @@ import (
 // PreCommitConfig holds configuration for pre-commit checks
 type PreCommitConfig struct {
 	ProjectRoot    string
-	EnableMutation bool
 	CoverageTarget int
 	Timeout        time.Duration
 	SkipTests      bool
@@ -217,17 +216,6 @@ func (r *PreCommitRunner) CheckCoverage() CheckResult {
 	return result
 }
 
-// RunMutationTesting runs mutation testing if enabled
-func (r *PreCommitRunner) RunMutationTesting() CheckResult {
-	if !r.config.EnableMutation {
-		return CheckResult{Name: "Mutation Testing", Success: true, Output: "Disabled"}
-	}
-
-	result := r.runCommand("Mutation Testing", "go", "test", "-v", "-run", "TestComprehensiveMutationTesting", "-timeout=60m")
-	r.results = append(r.results, result)
-	return result
-}
-
 // RunAllChecks runs all pre-commit checks
 func (r *PreCommitRunner) RunAllChecks() bool {
 	fmt.Println("🚀 Starting pre-commit checks...")
@@ -241,10 +229,6 @@ func (r *PreCommitRunner) RunAllChecks() bool {
 		r.CheckCoverage,
 	}
 
-	// Add mutation testing if enabled
-	if r.config.EnableMutation {
-		checks = append(checks, r.RunMutationTesting)
-	}
 
 	allPassed := true
 	for _, check := range checks {

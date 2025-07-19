@@ -28,9 +28,10 @@
     "typescript": "^5.3.2"
   },
   "dependencies": {
-    "effect": "^3.4.0",
-    "@effect/schema": "^0.68.0",
     "@effect/platform": "^0.58.0",
-    "@effect/platform-node": "^0.53.0"
+    "@effect/platform-node": "^0.53.0",
+    "@effect/schema": "^0.68.0",
+    "@playwright/mcp": "^0.0.31",
+    "effect": "^3.4.0"
   }
 }

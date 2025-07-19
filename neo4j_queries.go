@@ -8,140 +8,216 @@ import (
 )
 
 // buildGraphNodesQuery builds a query to fetch graph nodes (Pure Core)
-func buildGraphNodesQuery(orgName string) string {
+func buildGraphNodesQuery(orgName string, useTopics bool) string {
 	validateOrgNameNotEmpty(orgName)
 
-	return `
-		MATCH (org:Organization {login: $orgName})
-		OPTIONAL MATCH (org)-[:OWNS]->(repo:Repository)
-		OPTIONAL MATCH (org)-[:HAS_TEAM]->(team:Team)
-		OPTIONAL MATCH (org)-[:HAS_TOPIC]->(topic:Topic)
-		OPTIONAL MATCH (repo)-[:HAS_CODEOWNER]->(user:User)
-		OPTIONAL MATCH (repo)-[:HAS_TEAM_OWNER]->(team)
-		WITH org,
-			 COLLECT(DISTINCT {
-				 id: repo.id,
-				 type: 'repository',
-				 label: repo.name,
-				 data: {
-					 name: repo.name,
-					 fullName: repo.full_name,
-					 description: repo.description,
-					 private: repo.private,
-					 url: repo.url,
-					 createdAt: repo.created_at,
-					 updatedAt: repo.updated_at
-				 }
-			 }) AS repos,
-			 COLLECT(DISTINCT {
-				 id: team.id,
-				 type: 'team',
-				 label: team.name,
-				 data: {
-					 name: team.name,
-					 slug: team.slug,
-					 description: team.description,
-					 url: team.url
-				 }
-			 }) AS teams,
-			 COLLECT(DISTINCT {
-				 id: topic.name,
-				 type: 'topic',
-				 label: topic.name,
-				 data: {
-					 name: topic.name,
-					 count: topic.count
-				 }
-			 }) AS topics,
-			 COLLECT(DISTINCT {
-				 id: user.id,
-				 type: 'user',
-				 label: user.login,
-				 data: {
-					 login: user.login,
-					 name: user.name,
-					 email: user.email,
-					 url: user.url
-				 }
-			 }) AS users
-		RETURN {
-			id: org.id,
-			type: 'organization',
-			label: org.name,
-			data: {
-				login: org.login,
-				name: org.name,
-				description: org.description,
-				email: org.email,
-				url: org.url,
-				createdAt: org.created_at,
-				updatedAt: org.updated_at
-			}
-		} AS org_node,
-		repos,
-		teams,
-		topics,
-		users
-	`
+	if useTopics {
+		return `
+			MATCH (org:Organization {login: $orgName})
+			OPTIONAL MATCH (org)-[:OWNS]->(repo:Repository)
+			OPTIONAL MATCH (org)-[:HAS_TOPIC]->(topic:Topic)
+			OPTIONAL MATCH (repo)-[:HAS_CODEOWNER]->(user:User)
+			WITH org,
+				 COLLECT(DISTINCT {
+					 id: repo.id,
+					 type: 'repository',
+					 label: repo.name,
+					 data: {
+						 name: repo.name,
+						 fullName: repo.full_name,
+						 description: repo.description,
+						 private: repo.private,
+						 url: repo.url,
+						 createdAt: repo.created_at,
+						 updatedAt: repo.updated_at
+					 }
+				 }) AS repos,
+				 COLLECT(DISTINCT {
+					 id: topic.name,
+					 type: 'topic',
+					 label: topic.name,
+					 data: {
+						 name: topic.name,
+						 count: topic.count
+					 }
+				 }) AS topics,
+				 COLLECT(DISTINCT {
+					 id: user.id,
+					 type: 'user',
+					 label: user.login,
+					 data: {
+						 login: user.login,
+						 name: user.name,
+						 email: user.email,
+						 url: user.url
+					 }
+				 }) AS users
+			RETURN {
+				id: org.id,
+				type: 'organization',
+				label: org.name,
+				data: {
+					login: org.login,
+					name: org.name,
+					description: org.description,
+					email: org.email,
+					url: org.url,
+					createdAt: org.created_at,
+					updatedAt: org.updated_at
+				}
+			} AS org_node,
+			repos,
+			[] AS teams,
+			topics,
+			users
+		`
+	} else {
+		return `
+			MATCH (org:Organization {login: $orgName})
+			OPTIONAL MATCH (org)-[:OWNS]->(repo:Repository)
+			OPTIONAL MATCH (org)-[:HAS_TEAM]->(team:Team)
+			OPTIONAL MATCH (repo)-[:HAS_CODEOWNER]->(user:User)
+			OPTIONAL MATCH (repo)-[:HAS_TEAM_OWNER]->(team)
+			WITH org,
+				 COLLECT(DISTINCT {
+					 id: repo.id,
+					 type: 'repository',
+					 label: repo.name,
+					 data: {
+						 name: repo.name,
+						 fullName: repo.full_name,
+						 description: repo.description,
+						 private: repo.private,
+						 url: repo.url,
+						 createdAt: repo.created_at,
+						 updatedAt: repo.updated_at
+					 }
+				 }) AS repos,
+				 COLLECT(DISTINCT {
+					 id: team.id,
+					 type: 'team',
+					 label: team.name,
+					 data: {
+						 name: team.name,
+						 slug: team.slug,
+						 description: team.description,
+						 url: team.url
+					 }
+				 }) AS teams,
+				 COLLECT(DISTINCT {
+					 id: user.id,
+					 type: 'user',
+					 label: user.login,
+					 data: {
+						 login: user.login,
+						 name: user.name,
+						 email: user.email,
+						 url: user.url
+					 }
+				 }) AS users
+			RETURN {
+				id: org.id,
+				type: 'organization',
+				label: org.name,
+				data: {
+					login: org.login,
+					name: org.name,
+					description: org.description,
+					email: org.email,
+					url: org.url,
+					createdAt: org.created_at,
+					updatedAt: org.updated_at
+				}
+			} AS org_node,
+			repos,
+			teams,
+			[] AS topics,
+			users
+		`
+	}
 }
 
 // buildGraphEdgesQuery builds a query to fetch graph edges (Pure Core)
-func buildGraphEdgesQuery(orgName string) string {
+func buildGraphEdgesQuery(orgName string, useTopics bool) string {
 	validateOrgNameNotEmpty(orgName)
 
-	return `
-		MATCH (org:Organization {login: $orgName})
-		OPTIONAL MATCH (org)-[:OWNS]->(repo:Repository)
-		OPTIONAL MATCH (org)-[:HAS_TEAM]->(team:Team)
-		OPTIONAL MATCH (org)-[:HAS_TOPIC]->(topic:Topic)
-		OPTIONAL MATCH (repo)-[:HAS_TOPIC]->(repo_topic:Topic)
-		OPTIONAL MATCH (repo)-[:HAS_CODEOWNER]->(user:User)
-		OPTIONAL MATCH (repo)-[:HAS_TEAM_OWNER]->(team)
-		WITH org,
-			 COLLECT(DISTINCT {
-				 id: 'owns-' + org.id + '-' + repo.id,
-				 source: org.id,
-				 target: repo.id,
-				 type: 'owns',
-				 label: 'owns'
-			 }) AS owns_edges,
-			 COLLECT(DISTINCT {
-				 id: 'has-team-' + org.id + '-' + team.id,
-				 source: org.id,
-				 target: team.id,
-				 type: 'has_team',
-				 label: 'has team'
-			 }) AS team_edges,
-			 COLLECT(DISTINCT {
-				 id: 'has-topic-' + org.id + '-' + topic.name,
-				 source: org.id,
-				 target: topic.name,
-				 type: 'has_topic',
-				 label: 'has topic'
-			 }) AS topic_edges,
-			 COLLECT(DISTINCT {
-				 id: 'repo-topic-' + repo.id + '-' + repo_topic.name,
-				 source: repo.id,
-				 target: repo_topic.name,
-				 type: 'repo_topic',
-				 label: 'uses topic'
-			 }) AS repo_topic_edges,
-			 COLLECT(DISTINCT {
-				 id: 'codeowner-' + repo.id + '-' + user.id,
-				 source: repo.id,
-				 target: user.id,
-				 type: 'codeowner',
-				 label: 'code owner'
-			 }) AS codeowner_edges,
-			 COLLECT(DISTINCT {
-				 id: 'team-owner-' + repo.id + '-' + team.id,
-				 source: repo.id,
-				 target: team.id,
-				 type: 'team_owner',
-				 label: 'team owner'
-			 }) AS team_owner_edges
-		RETURN owns_edges + team_edges + topic_edges + repo_topic_edges + codeowner_edges + team_owner_edges AS edges
-	`
+	if useTopics {
+		return `
+			MATCH (org:Organization {login: $orgName})
+			OPTIONAL MATCH (org)-[:OWNS]->(repo:Repository)
+			OPTIONAL MATCH (org)-[:HAS_TOPIC]->(topic:Topic)
+			OPTIONAL MATCH (repo)-[:HAS_TOPIC]->(repo_topic:Topic)
+			OPTIONAL MATCH (repo)-[:HAS_CODEOWNER]->(user:User)
+			WITH org,
+				 COLLECT(DISTINCT {
+					 id: 'owns-' + org.id + '-' + repo.id,
+					 source: org.id,
+					 target: repo.id,
+					 type: 'owns',
+					 label: 'owns'
+				 }) AS owns_edges,
+				 COLLECT(DISTINCT {
+					 id: 'has-topic-' + org.id + '-' + topic.name,
+					 source: org.id,
+					 target: topic.name,
+					 type: 'has_topic',
+					 label: 'has topic'
+				 }) AS topic_edges,
+				 COLLECT(DISTINCT {
+					 id: 'repo-topic-' + repo.id + '-' + repo_topic.name,
+					 source: repo.id,
+					 target: repo_topic.name,
+					 type: 'repo_topic',
+					 label: 'uses topic'
+				 }) AS repo_topic_edges,
+				 COLLECT(DISTINCT {
+					 id: 'codeowner-' + repo.id + '-' + user.id,
+					 source: repo.id,
+					 target: user.id,
+					 type: 'codeowner',
+					 label: 'code owner'
+				 }) AS codeowner_edges
+			RETURN owns_edges + topic_edges + repo_topic_edges + codeowner_edges AS edges
+		`
+	} else {
+		return `
+			MATCH (org:Organization {login: $orgName})
+			OPTIONAL MATCH (org)-[:OWNS]->(repo:Repository)
+			OPTIONAL MATCH (org)-[:HAS_TEAM]->(team:Team)
+			OPTIONAL MATCH (repo)-[:HAS_CODEOWNER]->(user:User)
+			OPTIONAL MATCH (repo)-[:HAS_TEAM_OWNER]->(team)
+			WITH org,
+				 COLLECT(DISTINCT {
+					 id: 'owns-' + org.id + '-' + repo.id,
+					 source: org.id,
+					 target: repo.id,
+					 type: 'owns',
+					 label: 'owns'
+				 }) AS owns_edges,
+				 COLLECT(DISTINCT {
+					 id: 'has-team-' + org.id + '-' + team.id,
+					 source: org.id,
+					 target: team.id,
+					 type: 'has_team',
+					 label: 'has team'
+				 }) AS team_edges,
+				 COLLECT(DISTINCT {
+					 id: 'codeowner-' + repo.id + '-' + user.id,
+					 source: repo.id,
+					 target: user.id,
+					 type: 'codeowner',
+					 label: 'code owner'
+				 }) AS codeowner_edges,
+				 COLLECT(DISTINCT {
+					 id: 'team-owner-' + repo.id + '-' + team.id,
+					 source: repo.id,
+					 target: team.id,
+					 type: 'team_owner',
+					 label: 'team owner'
+				 }) AS team_owner_edges
+			RETURN owns_edges + team_edges + codeowner_edges + team_owner_edges AS edges
+		`
+	}
 }
 
 // buildStatsQuery builds a query to fetch organization statistics (Pure Core)
@@ -160,7 +236,7 @@ func buildStatsQuery(orgName string) string {
 			 COUNT(DISTINCT team) AS total_teams,
 			 COUNT(DISTINCT topic) AS total_topics,
 			 COUNT(DISTINCT user) AS total_users,
-			 COUNT(DISTINCT repo.id) FILTER (WHERE EXISTS((repo)-[:HAS_CODEOWNER]->()) OR EXISTS((repo)-[:HAS_TEAM_OWNER]->())) AS repos_with_codeowners
+			 SIZE([r IN collect(DISTINCT repo) WHERE EXISTS((r)-[:HAS_CODEOWNER]->()) OR EXISTS((r)-[:HAS_TEAM_OWNER]->())]) AS repos_with_codeowners
 		RETURN {
 			organization: org.login,
 			total_repositories: total_repos,
@@ -253,7 +329,10 @@ func buildCreateUserQuery() string {
 		MERGE (user:User {login: $login})
 		SET user.id = $id,
 			user.name = $name,
-			user.email = $email,
+			user.email = CASE 
+				WHEN $email = '' THEN NULL
+				ELSE $email
+			END,
 			user.url = $url
 		RETURN user
 	`

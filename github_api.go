@@ -168,6 +168,15 @@ func getStringFromMap(m map[string]interface{}, key string) string {
 		if str, ok := value.(string); ok {
 			return str
 		}
+		if i, ok := value.(int); ok {
+			return fmt.Sprintf("%d", i)
+		}
+		if f, ok := value.(float64); ok {
+			return fmt.Sprintf("%.0f", f)
+		}
+		if i64, ok := value.(int64); ok {
+			return fmt.Sprintf("%d", i64)
+		}
 	}
 	return ""
 }

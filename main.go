@@ -180,7 +180,7 @@ func (h *AppHandler) handleScanOrganization(ctx *gofr.Context) (interface{}, err
 
 	response, err := scanOrganization(ctx, h.deps, scanRequest)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan organization: %w", err)
+		return nil, err
 	}
 
 	return response, nil
@@ -195,9 +195,11 @@ func (h *AppHandler) handleGetGraph(ctx *gofr.Context) (interface{}, error) {
 		}
 	}
 
-	response, err := getOrganizationGraph(ctx, h.deps, orgName)
+	useTopics := parseBoolFromQuery(ctx, "useTopics", false)
+
+	response, err := getOrganizationGraph(ctx, h.deps, orgName, useTopics)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get organization graph: %w", err)
+		return nil, err
 	}
 
 	return response, nil
@@ -214,7 +216,7 @@ func (h *AppHandler) handleGetStats(ctx *gofr.Context) (interface{}, error) {
 
 	response, err := getOrganizationStats(ctx, h.deps, orgName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get organization stats: %w", err)
+		return nil, err
 	}
 
 	return response, nil
@@ -409,13 +411,13 @@ func scanOrganization(ctx *gofr.Context, deps *AppDependencies, request ScanRequ
 	// Fetch organization data
 	org, err := fetchGitHubOrganizationWithService(ctx, request.Organization)
 	if err != nil {
-		return ScanResponse{}, fmt.Errorf("failed to fetch organization: %w", err)
+		return ScanResponse{}, err
 	}
 
 	// Fetch repositories
 	repos, err := fetchGitHubRepositoriesWithService(ctx, request.Organization, request.MaxRepos)
 	if err != nil {
-		return ScanResponse{}, fmt.Errorf("failed to fetch repositories: %w", err)
+		return ScanResponse{}, err
 	}
 
 	// Fetch teams or topics based on configuration
@@ -440,12 +442,12 @@ func scanOrganization(ctx *gofr.Context, deps *AppDependencies, request ScanRequ
 	// Fetch CODEOWNERS files
 	codeowners, err := fetchCodeownersForReposWithService(ctx, repos)
 	if err != nil {
-		return ScanResponse{}, fmt.Errorf("failed to fetch CODEOWNERS: %w", err)
+		return ScanResponse{}, err
 	}
 
 	// Store data in Neo4j
 	if err := storeOrganizationData(ctx, deps.Neo4jConn, org, repos, teams, topics, codeowners); err != nil {
-		return ScanResponse{}, fmt.Errorf("failed to store data: %w", err)
+		return ScanResponse{}, convertNeo4jErrorToGoFr(err)
 	}
 
 	// Calculate summary
@@ -467,29 +469,29 @@ func scanOrganization(ctx *gofr.Context, deps *AppDependencies, request ScanRequ
 }
 
 // getOrganizationGraph retrieves graph data for an organization (Orchestrator)
-func getOrganizationGraph(ctx *gofr.Context, deps *AppDependencies, orgName string) (GraphResponse, error) {
+func getOrganizationGraph(ctx *gofr.Context, deps *AppDependencies, orgName string, useTopics bool) (GraphResponse, error) {
 	session, err := createNeo4jSession(ctx, deps.Neo4jConn)
 	if err != nil {
-		return GraphResponse{}, fmt.Errorf("failed to create Neo4j session: %w", err)
+		return GraphResponse{}, convertNeo4jErrorToGoFr(err)
 	}
 	defer closeNeo4jSession(ctx, session)
 
 	// Fetch nodes
-	nodesQuery := buildGraphNodesQuery(orgName)
+	nodesQuery := buildGraphNodesQuery(orgName, useTopics)
 	nodesResult, err := executeNeo4jReadQuery(ctx, session, nodesQuery, map[string]interface{}{
 		"orgName": orgName,
 	})
 	if err != nil {
-		return GraphResponse{}, fmt.Errorf("failed to fetch graph nodes: %w", err)
+		return GraphResponse{}, convertNeo4jErrorToGoFr(err)
 	}
 
 	// Fetch edges
-	edgesQuery := buildGraphEdgesQuery(orgName)
+	edgesQuery := buildGraphEdgesQuery(orgName, useTopics)
 	edgesResult, err := executeNeo4jReadQuery(ctx, session, edgesQuery, map[string]interface{}{
 		"orgName": orgName,
 	})
 	if err != nil {
-		return GraphResponse{}, fmt.Errorf("failed to fetch graph edges: %w", err)
+		return GraphResponse{}, convertNeo4jErrorToGoFr(err)
 	}
 
 	nodes := convertToGraphNodes(nodesResult.Records)
@@ -505,7 +507,7 @@ func getOrganizationGraph(ctx *gofr.Context, deps *AppDependencies, orgName stri
 func getOrganizationStats(ctx *gofr.Context, deps *AppDependencies, orgName string) (StatsResponse, error) {
 	session, err := createNeo4jSession(ctx, deps.Neo4jConn)
 	if err != nil {
-		return StatsResponse{}, fmt.Errorf("failed to create Neo4j session: %w", err)
+		return StatsResponse{}, convertNeo4jErrorToGoFr(err)
 	}
 	defer closeNeo4jSession(ctx, session)
 
@@ -514,11 +516,14 @@ func getOrganizationStats(ctx *gofr.Context, deps *AppDependencies, orgName stri
 		"orgName": orgName,
 	})
 	if err != nil {
-		return StatsResponse{}, fmt.Errorf("failed to fetch stats: %w", err)
+		return StatsResponse{}, convertNeo4jErrorToGoFr(err)
 	}
 
 	if len(result.Records) == 0 {
-		return StatsResponse{}, fmt.Errorf("no data found for organization: %s", orgName)
+		return StatsResponse{}, &gofrhttp.ErrorEntityNotFound{
+			Name:  "organization",
+			Value: orgName,
+		}
 	}
 
 	return convertToStatsResponse(result.Records[0], orgName), nil
@@ -797,4 +802,44 @@ func main() {
 	// Start server
 	app.Logger().Infof("Starting GitHub Codeowners Visualization API")
 	app.Run()
+}
+
+// convertNeo4jErrorToGoFr converts Neo4j errors to appropriate GoFr error types
+func convertNeo4jErrorToGoFr(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	// Check if it's already a GoFr error
+	switch err.(type) {
+	case *gofrhttp.ErrorMissingParam,
+		*gofrhttp.ErrorEntityNotFound,
+		*gofrhttp.ErrorInvalidParam,
+		*gofrhttp.ErrorRequestTimeout:
+		return err
+	}
+
+	// Handle Neo4j specific errors
+	errStr := err.Error()
+	switch {
+	case strings.Contains(errStr, "no data found"),
+		strings.Contains(errStr, "not found"),
+		strings.Contains(errStr, "record not found"):
+		return &gofrhttp.ErrorEntityNotFound{
+			Name:  "data",
+			Value: "requested resource",
+		}
+	case strings.Contains(errStr, "invalid parameter"),
+		strings.Contains(errStr, "validation failed"),
+		strings.Contains(errStr, "constraint violation"):
+		return &gofrhttp.ErrorInvalidParam{
+			Params: []string{"database_constraint"},
+		}
+	case strings.Contains(errStr, "timeout"),
+		strings.Contains(errStr, "connection timeout"):
+		return &gofrhttp.ErrorRequestTimeout{}
+	default:
+		// For database errors, return as internal server error (500)
+		return err
+	}
 }

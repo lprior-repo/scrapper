@@ -14,10 +14,8 @@ A comprehensive GitHub organization scanner and codeowners visualization tool th
 ## Architecture
 
 - **Backend**: Go with Pure Core/Impure Shell architecture
-- **Frontend**: React/TypeScript with Effect-TS for type safety and composability
-- **Ingestor**: TypeScript with Effect-TS for functional data processing
+- **Frontend**: React/TypeScript with Bun package manager
 - **Database**: Neo4j graph database for storing relationships
-- **Package Manager**: Bun for fast TypeScript development
 - **API**: RESTful HTTP API with comprehensive endpoints
 
 ## Quick Start
@@ -25,9 +23,7 @@ A comprehensive GitHub organization scanner and codeowners visualization tool th
 ### Prerequisites
 
 - Docker and Docker Compose
-- Bun (JavaScript runtime and package manager)
 - GitHub Personal Access Token (for scanning)
-- Task (task runner) - install with `go install github.com/go-task/task/v3/cmd/task@latest`
 
 ### 1. Clone and Setup
 
@@ -36,14 +32,14 @@ git clone <repository-url>
 cd scrapper
 ```
 
-### 2. Setup and Start Services
+### 2. Start Services
 
 ```bash
-# Setup development environment
-task setup
+# Start all services (Neo4j, Redis, API, UI)
+docker-compose up -d
 
-# Start full development stack
-task dev
+# Wait for services to be healthy
+docker-compose ps
 ```
 
 ### 3. Access the Application
@@ -55,73 +51,51 @@ task dev
 ### 4. Scan an Organization
 
 ```bash
-# Using the API (Go backend)
-curl -X POST http://localhost:8081/api/scan/kubernetes
+# Set your GitHub token
+export GITHUB_TOKEN="your_github_token_here"
 
-# Using the ingestor (TypeScript)
-task ingest ORG=kubernetes
+# Scan an organization
+./overseer scan microsoft
 
-# Using the web interface
-# Visit http://localhost:3000 and enter organization name
+# Or using Docker
+docker exec overseer-app ./overseer scan microsoft
 ```
 
 ## Development Setup
 
-### Using Task (Recommended)
+### Local Development
 
+1. **Start only the database services**:
 ```bash
-# Setup everything
-task setup
-
-# Start full development stack
-task dev
-
-# Start individual services
-task start-api      # Go backend only
-task start-frontend # React frontend only
-
-# Run tests
-task test           # All tests
-task test-frontend  # Frontend tests only
-
-# Build everything
-task build
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
-### Manual Setup
-
-1. **Start database services**:
-
+2. **Run the backend locally**:
 ```bash
-docker-compose up -d neo4j
-```
+export GITHUB_TOKEN="your_token"
+export NEO4J_URI="bolt://localhost:7687"
+export NEO4J_USERNAME="neo4j"
+export NEO4J_PASSWORD="password"
 
-2. **Install dependencies**:
-
-```bash
-bun install
-cd packages/webapp && bun install
-```
-
-3. **Run services**:
-
-```bash
-# Backend
 go run . api
+```
 
-# Frontend
-cd packages/webapp && bun run dev
+3. **Run the frontend locally**:
+```bash
+cd ui
+bun install
+bun run dev
 ```
 
 ### Environment Variables
 
-| Variable         | Description                          | Default                 |
-| ---------------- | ------------------------------------ | ----------------------- |
-| `GITHUB_TOKEN`   | GitHub Personal Access Token         | Required                |
-| `NEO4J_URI`      | Neo4j database URI                   | `bolt://localhost:7687` |
-| `NEO4J_USERNAME` | Neo4j username                       | `neo4j`                 |
-| `NEO4J_PASSWORD` | Neo4j password                       | `password`              |
-| `ENVIRONMENT`    | Environment (development/production) | `development`           |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GITHUB_TOKEN` | GitHub Personal Access Token | Required |
+| `NEO4J_URI` | Neo4j database URI | `bolt://localhost:7687` |
+| `NEO4J_USERNAME` | Neo4j username | `neo4j` |
+| `NEO4J_PASSWORD` | Neo4j password | `password` |
+| `ENVIRONMENT` | Environment (development/production) | `development` |
 
 ## API Endpoints
 
@@ -141,42 +115,20 @@ cd packages/webapp && bun run dev
 - `GET /api/health` - Health check
 - `GET /api/version` - Version information
 
-## Available Commands
-
-### Task Commands
+## CLI Commands
 
 ```bash
-# Development
-task dev           # Start full development stack
-task setup         # Setup development environment
-task clean         # Clean up environment
+# Show help
+./overseer help
 
-# Building
-task build         # Build everything
-task build-api     # Build Go backend
-task build-frontend # Build React frontend
+# Start API server
+./overseer api
 
-# Testing
-task test          # Run all tests
-task test-frontend # Run frontend tests
-task lint          # Run linters
+# Scan an organization
+./overseer scan <organization>
 
-# Services
-task start-api     # Start Go API server
-task start-frontend # Start React frontend
-task ingest ORG=<org> # Run TypeScript ingestor
-```
-
-### Direct CLI Commands
-
-```bash
-# Go backend
-go run . api       # Start API server
-go run . scan <org> # Scan organization
-
-# TypeScript packages
-cd packages/webapp && bun run dev  # Start frontend
-cd packages/ingestor && bun run ingest <org> # Run ingestor
+# Clean up processes
+./overseer cleanup
 ```
 
 ## Testing
@@ -184,71 +136,64 @@ cd packages/ingestor && bun run ingest <org> # Run ingestor
 The project includes comprehensive testing:
 
 ```bash
-# Run all tests (Go + TypeScript)
-task test
-
-# Run Go tests only
+# Run all tests
 go test -v ./...
-
-# Run TypeScript tests only
-task test-frontend
 
 # Run specific test categories
 go test -v -run "TestGitHub.*"    # GitHub integration tests
 go test -v -run "TestGraph.*"     # Graph database tests
 go test -v -run "TestPure.*"      # Pure core logic tests
+
+# Run frontend tests
+cd ui
+bun test
 ```
 
 ## Building
 
-### Using Task
-
-```bash
-# Build everything
-task build
-
-# Build individual components
-task build-api      # Go backend
-task build-frontend # React frontend
-```
-
-### Manual Build
+### Local Build
 
 ```bash
 # Build Go application
 go build -o overseer .
 
 # Build frontend
-cd packages/webapp && bun run build
+cd ui
+bun run build
+```
+
+### Docker Build
+
+```bash
+# Build all services
+docker-compose build
+
+# Build specific service
+docker-compose build app
 ```
 
 ## Project Structure
 
 ```
-├── main.go                    # Go application entry point
-├── github_*.go               # GitHub API integration
-├── neo4j_*.go                # Graph database operations
-├── error_handling.go         # Error handling utilities
-├── batch_processing.go       # Batch processing utilities
-├── Taskfile.yml              # Task runner configuration
-├── docker-compose.yml        # Docker setup
-├── package.json              # Root TypeScript dependencies
-├── tsconfig.json            # Root TypeScript configuration
-├── packages/                 # TypeScript monorepo
-│   ├── webapp/              # React frontend with Effect-TS
-│   │   ├── src/
-│   │   │   ├── App.tsx      # Main application component
-│   │   │   ├── components/  # React components
-│   │   │   ├── services.ts  # Effect-TS service definitions
-│   │   │   └── index.tsx    # Entry point
-│   │   ├── package.json     # Frontend dependencies
-│   │   └── tsconfig.json    # Frontend TypeScript config
-│   └── ingestor/            # TypeScript data ingestor
-│       ├── src/
-│       │   ├── index.ts     # Ingestor entry point
-│       │   └── services.ts  # Effect-TS services
-│       └── package.json     # Ingestor dependencies
-└── README.md               # This file
+├── main.go                 # Application entry point
+├── config.go              # Configuration management
+├── github_*.go            # GitHub API integration
+├── graph_*.go             # Graph database operations
+├── http_server.go         # HTTP server and API endpoints
+├── migrations.go          # Database migrations
+├── error_handling.go      # Error handling utilities
+├── batch_processing.go    # Batch processing utilities
+├── docker-compose.yml     # Production Docker setup
+├── docker-compose.dev.yml # Development Docker setup
+├── Dockerfile            # Application Docker image
+├── ui/                   # React frontend
+│   ├── src/
+│   │   ├── App.tsx       # Main application component
+│   │   ├── components/   # React components
+│   │   └── main.tsx      # Entry point
+│   ├── Dockerfile        # UI Docker image
+│   └── package.json      # UI dependencies
+└── README.md            # This file
 ```
 
 ## Contributing
@@ -267,7 +212,6 @@ MIT License - see LICENSE file for details
 ## Support
 
 For issues and questions:
-
 - Create an issue on GitHub
 - Check existing documentation
 - Review the API documentation at `/api/docs`

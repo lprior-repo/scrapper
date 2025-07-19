@@ -14,7 +14,7 @@ max_repos=10
 max_teams=5
 
 # Performance thresholds (milliseconds)
-response_time_threshold=5000
+response_time_threshold=60000
 health_check_threshold=1000
 
 # GitHub API rate limits

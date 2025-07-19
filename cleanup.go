@@ -254,7 +254,6 @@ func cleanupTempFiles(verbose bool) error {
 		"ui/dist/",
 		"ui/coverage/",
 		"ui/stryker-tmp/",
-		"ui/mutation-report.html",
 		"test_api.go", // Clean up our test file
 	}
 

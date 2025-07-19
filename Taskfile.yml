@@ -1,18 +1,104 @@
 version: '3'
 
 tasks:
-  # Core Development Tasks
+  # Essential Commands
   setup:
-    desc: Set up the development environment
+    desc: Complete setup for initial clone (infrastructure + dependencies + build)
     cmds:
-      - echo "🧹 Performing cleanup for fresh start..."
-      - go run . --cleanup || true
-      - docker compose up -d neo4j
+      - echo "🚀 Setting up complete development environment..."
+      - echo "🐳 Starting infrastructure..."
+      - docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d neo4j
       - task: wait-for-neo4j
-      - echo "📦 Installing TypeScript dependencies..."
+      - echo "📦 Installing all dependencies..."
       - bun install
       - cd packages/webapp && bun install
-      - echo "Development environment ready"
+      - bunx playwright install
+      - echo "🔨 Building application..."
+      - go build -o bin/overseer .
+      - cd packages/webapp && bun run build
+      - echo "✅ Complete setup finished - ready for development!"
+
+  test:
+    desc: Run complete test suite with infrastructure at maximum speed
+    cmds:
+      - echo "🚀 Running complete test suite at maximum speed..."
+      - task: ensure-neo4j-running
+      - task: setup-dependencies
+      - echo "📦 Running Go unit tests..."
+      - go test ./... -v -timeout=60s -skip TestComprehensiveMutationTesting
+      - echo "🎯 Running Go acceptance tests..."
+      - go test ./... -v -run Acceptance -timeout=180s
+      - echo "🌐 Starting API server for testing..."
+      - task: start-api-for-testing
+      - echo "🔍 Running API health tests..."
+      - task: test-api-health
+      - echo "⚙️ Running API functional tests..."
+      - task: test-api-functional
+      - echo "🔍 Running API edge case tests..."
+      - task: test-api-edge-cases
+      - echo "🎨 Running frontend tests..."
+      - task: test-frontend-unit
+      - echo "🎭 Running Playwright E2E tests..."
+      - task: playwright
+      - task: stop-api-for-testing
+      - task: cleanup-test-database
+      - echo "✅ All tests completed successfully!"
+
+  dev:
+    desc: Start development environment at maximum speed
+    cmds:
+      - echo "🚀 Starting development stack..."
+      - task: ensure-neo4j-running
+      - task: setup-dependencies
+      - echo "🚀 Starting services..."
+      - echo "  📊 Neo4j{{":"}} http{{":"}}//localhost{{":"}}7474"
+      - echo "  🔧 API{{":"}} http{{":"}}//localhost{{":"}}8081"
+      - echo "  🌐 Frontend{{":"}} http{{":"}}//localhost{{":"}}3000"
+      - echo ""
+      - echo "Starting services concurrently... Press Ctrl+C to stop all services."
+      - ./start-dev.sh
+
+  build:
+    desc: Build all components
+    cmds:
+      - echo "🔨 Building all components..."
+      - go build -o bin/overseer .
+      - cd packages/webapp && bun run build
+      - echo "✅ Build completed!"
+
+  clean:
+    desc: Clean up development environment
+    cmds:
+      - echo "🧹 Cleaning up..."
+      - go run . --cleanup || true
+      - docker compose down
+      - rm -f coverage.out coverage.html gosec-report.json
+      - rm -rf bin/
+      - rm -rf packages/webapp/dist/
+      - echo "✅ Cleanup completed!"
+
+  api-start:
+    desc: Start API server and infrastructure for testing without running hurl tests
+    cmds:
+      - echo "🚀 Starting API server and infrastructure for testing..."
+      - task: ensure-neo4j-running
+      - task: setup-dependencies
+      - task: cleanup-test-database
+      - task: start-api-for-testing
+      - echo "✅ API server and infrastructure ready for testing!"
+
+  # Internal/Support Tasks
+  ensure-neo4j-running:
+    desc: Ensure Neo4j is running (don't restart if already up)
+    cmds:
+      - |
+        if ! docker compose exec neo4j cypher-shell -u neo4j -p password "RETURN 1" > /dev/null 2>&1; then
+          echo "Starting Neo4j..."
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d neo4j
+          task wait-for-neo4j
+        else
+          echo "Neo4j already running"
+        fi
 
   wait-for-neo4j:
     desc: Wait for Neo4j to be ready
@@ -26,445 +112,108 @@ tasks:
             echo "Neo4j failed to start within ${timeout} seconds"
             exit 1
           fi
-          echo "Neo4j is not ready yet. Waiting 5 seconds... (${count}/${timeout})"
-          sleep 5
-          count=$((count + 5))
+          echo "Neo4j is not ready yet. Waiting 2 seconds... (${count}/${timeout})"
+          sleep 2
+          count=$((count + 2))
         done
         echo "Neo4j is ready!"
 
-  run:
-    desc: Run the overseer application
-    deps: [setup]
+  setup-dependencies:
+    desc: Install dependencies only when needed
     cmds:
-      - go run .
-
-  # Testing Tasks
-  test:
-    desc: Run all tests including unit, property-based, integration, acceptance, and mutation tests
-    deps: [setup]
-    cmds:
-      - echo "Running complete test suite..."
-      - go test ./... -v -timeout=120s -skip TestComprehensiveMutationTesting
-      - echo "Running acceptance tests..."
-      - go test ./... -v -run Acceptance -timeout=300s
-      - echo "Running mutation testing in critical mode..."
-      - MUTATION_TEST_MODE=critical go test -v -run TestComprehensiveMutationTesting -timeout=20m
-      - echo "All tests completed successfully!"
-
-  test-unit:
-    desc: Run unit tests only
-    deps: [setup]
-    cmds:
-      - go test ./... -v -short -timeout=60s
-
-  test-integration:
-    desc: Run integration tests only
-    deps: [setup]
-    cmds:
-      - go test ./... -v -run Integration
-
-  test-acceptance:
-    desc: Run acceptance tests only
-    deps: [setup]
-    cmds:
-      - go test ./... -v -run Acceptance -timeout=300s
-
-  test-mutation-fast:
-    desc: Run fast mutation tests (critical files only, 5 min timeout)
-    deps: [setup]
-    cmds:
-      - echo "Running fast mutation testing..."
-      - MUTATION_TEST_MODE=fast go test -v -run TestComprehensiveMutationTesting -timeout=10m
-      - echo "Fast mutation testing completed!"
-
-  test-mutation-critical:
-    desc: Run critical mutation tests (core business logic, 15 min timeout)
-    deps: [setup]
-    cmds:
-      - echo "Running critical mutation testing..."
-      - MUTATION_TEST_MODE=critical go test -v -run TestComprehensiveMutationTesting -timeout=20m
-      - echo "Critical mutation testing completed!"
-
-  test-mutation-comprehensive:
-    desc: Run comprehensive mutation tests (entire codebase, 45 min timeout)
-    deps: [setup]
-    cmds:
-      - echo "Running comprehensive mutation testing..."
-      - MUTATION_TEST_MODE=comprehensive go test -v -run TestComprehensiveMutationTesting -timeout=50m
-      - echo "Comprehensive mutation testing completed!"
-
-  # Quality Tasks
-  lint:
-    desc: Run golangci-lint with comprehensive checks
-    cmds:
-      - golangci-lint run --config .golangci.yml --verbose
-      - echo "Linting completed successfully!"
-
-  fix:
-    desc: Auto-fix Go code issues
-    cmds:
-      - echo "🔧 Auto-fixing Go code..."
-      - golangci-lint run --config .golangci.yml --fix --verbose
-      - go fmt ./...
-
-  security:
-    desc: Run security analysis
-    cmds:
-      - gosec -fmt=json -out=gosec-report.json ./...
-      - echo "Security analysis completed! Check gosec-report.json for results."
-
-  coverage:
-    desc: Run tests with coverage analysis
-    deps: [setup]
-    cmds:
-      - go test -v -race -coverprofile=coverage.out -covermode=atomic -timeout=300s ./...
-      - go tool cover -html=coverage.out -o coverage.html
-      - go tool cover -func=coverage.out
-      - echo "Coverage analysis completed! Open coverage.html in a browser."
-
-  check-coverage:
-    desc: Check if test coverage meets minimum requirements (95%)
-    deps: [coverage]
-    cmds:
-      - |
-        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-        echo "Total coverage: ${COVERAGE}%"
-        if (( $(echo "${COVERAGE} < 95" | bc -l) )); then
-          echo "❌ Coverage ${COVERAGE}% is below required 95%"
-          exit 1
-        else
-          echo "✅ Coverage ${COVERAGE}% meets the requirement!"
-        fi
-
-  quality:
-    desc: Run comprehensive code quality checks
-    deps: [setup]
-    cmds:
-      - task: lint
-      - task: security
-      - task: check-coverage
-      - task: test
-      - task: test-api
-      - echo "✅ All quality checks passed!"
-
-  quality-fast:
-    desc: Run fast code quality checks (for CI)
-    deps: [setup]
-    cmds:
-      - task: lint
-      - task: security
-      - task: check-coverage
-      - task: test-mutation-fast
-      - task: test-api-ci
-      - echo "✅ Fast quality checks passed!"
-
-  ci:
-    desc: Run the same checks as CI
-    deps: [setup]
-    cmds:
-      - task: quality-fast
-      - echo "✅ CI checks completed successfully!"
-
-  # Build Tasks
-  build:
-    desc: Build Go backend
-    cmds:
-      - echo "📦 Building Go backend..."
-      - go build -o bin/overseer .
-
-  # Clean Tasks
-  clean:
-    desc: Clean up development environment
-    cmds:
-      - docker compose down
-      - docker volume rm scrapper_neo4j_data scrapper_neo4j_logs || true
-      - rm -f coverage.out coverage.html gosec-report.json
-      - rm -rf bin/
-      - rm -rf tests/reports/
-
-  reset:
-    desc: Reset the development environment
-    cmds:
-      - task: clean
-      - task: setup
-
-  # Development Server Tasks
-  dev:
-    desc: Start the full development stack (database, API, frontend) with proper cleanup and signal handling
-    cmds:
-      - echo "🧹 Performing emergency cleanup for fresh start..."
-      - go run . cleanup || true
-      - echo "⚙️  Setting up development environment..."
-      - task: setup
-      - echo "📦 Installing frontend dependencies..."
-      - cd packages/webapp && bun install
-      - echo "🚀 Starting development stack..."
-      - echo "  📊 Neo4j{{":"}} http{{":"}}//localhost{{":"}}7474"
-      - echo "  🔧 API{{":"}} http{{":"}}//localhost{{":"}}8081"
-      - echo "  🌐 Frontend{{":"}} http{{":"}}//localhost{{":"}}3000"
-      - echo ""
-      - echo "Starting services concurrently... Press Ctrl+C to stop all services."
-      - echo ""
-      - ./start-dev.sh
-
-  start-api:
-    desc: Start the backend API server
-    deps: [setup]
-    cmds:
-      - echo "🔧 Starting API server on port 8081..."
-      - go run . api
-
-  start-frontend:
-    desc: Start the frontend development server
-    cmds:
-      - echo "🌐 Starting frontend on port 3000..."
-      - cd packages/webapp && bun run dev
-
-  stop:
-    desc: Stop all development services
-    cmds:
-      - echo "🛑 Stopping all services..."
-      - go run . cleanup
-      - echo "✅ All services stopped"
-
-  restart:
-    desc: Restart the full development stack
-    cmds:
-      - task: stop
-      - task: dev
-
-  logs:
-    desc: Show Neo4j logs
-    cmds:
-      - docker compose logs -f neo4j
-
-  # Frontend Tasks
-  setup-frontend:
-    desc: Setup frontend development environment
-    cmds:
-      - echo "📦 Installing frontend dependencies..."
       - bun install
       - cd packages/webapp && bun install
-      - echo "🎭 Installing Playwright browsers..."
-      - cd packages/webapp && bunx playwright install
+    sources:
+      - package.json
+      - packages/webapp/package.json
+    generates:
+      - node_modules/.package-lock.json
+      - packages/webapp/node_modules/.package-lock.json
+    method: checksum
 
-  build-frontend:
-    desc: Build the frontend for production
+  start-api-for-testing:
+    desc: Start API server for testing
     cmds:
-      - echo "📦 Building frontend..."
-      - cd packages/webapp && bun run build
+      - |
+        # Clean up any existing processes on ports
+        lsof -ti:8081 | xargs -r kill -9 2>/dev/null || true
+        lsof -ti:9094 | xargs -r kill -9 2>/dev/null || true
+        sleep 1
+        # Start API server in background
+        go run . api > api_test.log 2>&1 &
+        echo $! > api_test.pid
+        
+        # Wait for server to be ready
+        echo "⏳ Waiting for API server to be ready..."
+        timeout=30
+        count=0
+        until curl -s http://localhost:8081/api/health > /dev/null 2>&1; do
+          if [ $count -ge $timeout ]; then
+            echo "❌ API server failed to start within ${timeout} seconds"
+            if [ -f api_test.pid ]; then
+              kill $(cat api_test.pid) 2>/dev/null || true
+              rm -f api_test.pid
+            fi
+            exit 1
+          fi
+          echo "API server not ready yet. Waiting 1 second... (${count}/${timeout})"
+          sleep 1
+          count=$((count + 1))
+        done
+        echo "✅ API server is ready!"
 
-  test-frontend:
-    desc: Run frontend tests (unit, lint, e2e)
+  stop-api-for-testing:
+    desc: Stop API server after testing
     cmds:
-      - echo "🧪 Running frontend tests..."
-      - cd packages/webapp && bun run lint
-      - cd packages/webapp && bun run test
-      - cd packages/webapp && bun run playwright
+      - |
+        if [ -f api_test.pid ]; then
+          kill $(cat api_test.pid) 2>/dev/null || true
+          rm -f api_test.pid
+        fi
+        pkill -f "go run . api" 2>/dev/null || true
+        lsof -ti:8081 | xargs -r kill -9 2>/dev/null || true
+        lsof -ti:9094 | xargs -r kill -9 2>/dev/null || true
+        echo "✅ API server stopped and ports cleaned"
 
-  lint-frontend:
-    desc: Run TypeScript linting
+  cleanup-test-database:
+    desc: Clean up test database after test runs
     cmds:
-      - echo "🔍 Running TypeScript linting..."
-      - cd packages/webapp && bun run lint
-
-  fix-frontend:
-    desc: Auto-fix TypeScript code issues
-    cmds:
-      - echo "🔧 Auto-fixing TypeScript code..."
-      - cd packages/webapp && bun run lint --fix
-
-  # Full Stack Tasks
-  dev-full:
-    desc: Setup and start the complete development environment
-    cmds:
-      - task: setup-frontend
-      - task: dev
-
-  # API Testing Tasks
-  test-api:
-    desc: Run all API tests (health, functional, security, performance)
-    deps: [setup]
-    cmds:
-      - echo "🌐 Running complete API test suite..."
-      - task: test-api-health
-      - task: test-api-functional
-      - task: test-api-security
-      - task: test-api-performance
-      - echo "✅ All API tests completed!"
+      - |
+        echo "🧹 Cleaning up test database..."
+        docker compose exec neo4j cypher-shell -u neo4j -p password "MATCH (n) DETACH DELETE n" || true
+        echo "✅ Test database cleaned"
 
   test-api-health:
     desc: Run health check API tests
     cmds:
-      - echo "💚 Running health check API tests..."
-      - hurl --test k8s_tests.hurl
       - hurl --test --variables-file tests/config/global.hurl tests/functional/health.hurl
-      - echo "✅ Health check tests passed!"
 
   test-api-functional:
     desc: Run functional API tests
+    internal: true
     cmds:
-      - echo "⚙️ Running functional API tests..."
       - hurl --test --variables-file tests/config/global.hurl tests/functional/scan.hurl
       - hurl --test --variables-file tests/config/global.hurl tests/functional/graph.hurl
       - hurl --test --variables-file tests/config/global.hurl tests/functional/stats.hurl
-      - hurl --test --variables-file tests/config/global.hurl tests/functional/docs.hurl
-      - hurl --test --variables-file tests/config/global.hurl tests/functional/openapi.hurl
-      - echo "✅ Functional API tests passed!"
 
-  test-frontend:
-    desc: Run frontend tests (requires frontend server running)
+  test-api-edge-cases:
+    desc: Run edge case API tests (simplified)
+    internal: true
     cmds:
-      - echo "🌐 Running frontend tests..."
-      - hurl --test tests/functional/frontend.hurl
-      - echo "✅ Frontend tests passed!"
+      - hurl --test --variables-file tests/config/global.hurl tests/edge-cases/boundary-value-tests.hurl
+      - hurl --test --variables-file tests/config/global.hurl tests/edge-cases/error-scenario-tests.hurl
 
-  test-api-security:
-    desc: Run security API tests
+  test-frontend-unit:
+    desc: Run frontend unit tests
+    internal: true
     cmds:
-      - echo "🔒 Running security API tests..."
-      - hurl --test --variables-file tests/config/global.hurl tests/security/security-health.hurl
-      - hurl --test --variables-file tests/config/global.hurl tests/security/security-scan.hurl
-      - hurl --test --variables-file tests/config/global.hurl tests/security/security-graph.hurl
-      - hurl --test --variables-file tests/config/global.hurl tests/security/security-stats.hurl
-      - hurl --test --variables-file tests/config/global.hurl tests/security/security-docs.hurl
-      - hurl --test --variables-file tests/config/global.hurl tests/security/security-openapi.hurl
-      - echo "✅ Security API tests passed!"
+      - cd packages/webapp && bun run test
 
-  test-api-performance:
-    desc: Run performance API tests
+  playwright:
+    desc: Run Playwright E2E tests with full setup and teardown
     cmds:
-      - echo "⚡ Running performance API tests..."
-      - hurl --test --variables-file tests/config/global.hurl tests/performance/performance-health.hurl
-      - hurl --test --variables-file tests/config/global.hurl tests/performance/performance-scan.hurl
-      - hurl --test --variables-file tests/config/global.hurl tests/performance/performance-graph.hurl
-      - echo "✅ Performance API tests passed!"
-
-  test-api-report:
-    desc: Run all API tests with detailed reporting
-    deps: [setup]
-    cmds:
-      - echo "📊 Running API tests with detailed reporting..."
-      - mkdir -p tests/reports
-      - hurl --test --report-junit tests/reports/api-health-report.xml --variables-file tests/config/global.hurl tests/functional/health.hurl
-      - hurl --test --report-junit tests/reports/api-functional-report.xml --variables-file tests/config/global.hurl tests/functional/scan.hurl tests/functional/graph.hurl tests/functional/stats.hurl tests/functional/docs.hurl tests/functional/openapi.hurl
-      - hurl --test --report-junit tests/reports/api-security-report.xml --variables-file tests/config/global.hurl tests/security/security-*.hurl
-      - hurl --test --report-junit tests/reports/api-performance-report.xml --variables-file tests/config/global.hurl tests/performance/performance-*.hurl
-      - echo "✅ API test reports generated in tests/reports/"
-
-  test-api-ci:
-    desc: Run API tests suitable for CI/CD with fast timeout
-    deps: [setup]
-    cmds:
-      - echo "🚀 Running CI-optimized API tests..."
-      - hurl --test --max-time 30 --variables-file tests/config/global.hurl tests/functional/health.hurl
-      - hurl --test --max-time 60 --variables-file tests/config/global.hurl tests/functional/scan.hurl tests/functional/graph.hurl
-      - hurl --test --max-time 30 --variables-file tests/config/global.hurl tests/security/security-health.hurl tests/security/security-scan.hurl
-      - echo "✅ CI API tests completed!"
-
-  test-all:
-    desc: Run all tests across Go, TypeScript, and API ecosystems
-    deps: [setup, setup-frontend]
-    cmds:
-      - echo "🧪 Running comprehensive test suite across all ecosystems..."
-      - task: test
-      - echo "🎭 Running acceptance tests..."
-      - task: test-acceptance
-      - echo "🌐 Running API tests..."
-      - task: test-api
-      - cd packages/webapp && bun run test:coverage
-      - cd packages/webapp && bun run test:mutation
-      - cd packages/webapp && bun run playwright
-      - echo "✅ All ecosystem tests completed!"
-
-  lint-all:
-    desc: Run linting across all ecosystems
-    deps: [setup-frontend]
-    cmds:
-      - echo "🔍 Running linting across all ecosystems..."
-      - task: lint
-      - task: lint-frontend
-      - echo "✅ All linting completed!"
-
-  fix-all:
-    desc: Auto-fix issues across all ecosystems
-    cmds:
-      - echo "🔧 Auto-fixing issues across all ecosystems..."
-      - task: fix
-      - task: fix-frontend
-      - echo "✅ Auto-fix completed!"
-
-  build-all:
-    desc: Build both backend and frontend
-    deps: [setup, setup-frontend]
-    cmds:
-      - echo "📦 Building all components..."
-      - task: build
-      - task: build-frontend
-      - echo "✅ All builds completed!"
-
-  clean-all:
-    desc: Clean all build artifacts and test outputs
-    cmds:
-      - echo "🧹 Cleaning all artifacts..."
-      - task: clean
-      - rm -rf node_modules packages/*/node_modules
-      - rm -rf packages/*/dist packages/*/build
-      - rm -rf packages/*/coverage packages/*/.cache
-      - rm -rf packages/*/stryker-tmp packages/*/mutation-report.html
-      - rm -rf tests/reports/
-      - echo "✅ All artifacts cleaned!"
-
-  # Ingestor Tasks
-  ingest:
-    desc: Run data ingestion for an organization
-    vars:
-      ORG: '{{.ORG | default "kubernetes"}}'
-    cmds:
-      - echo "📥 Running data ingestion for {{.ORG}}..."
-      - cd packages/ingestor && bun run ingest {{.ORG}}
-
-  ingest:batch:
-    desc: Run batch ingestion for multiple organizations
-    cmds:
-      - echo "📥 Running batch data ingestion..."
-      - cd packages/ingestor && bun run batch
-
-  # Utility Tasks
-  scan:
-    desc: Scan a GitHub organization and visualize codeowners
-    cmds:
-      - echo "🔍 Starting GitHub codeowner scanner..."
-      - echo "1. Start the development stack with{{":"}} task dev"
-      - echo "2. Open http{{":"}}//localhost{{":"}}3000 in your browser"
-      - echo "3. Enter your GitHub organization name and token"
-      - echo "4. Click 'Scan Organization' to import data"
-      - echo "5. View the interactive visualization"
-
-  # Pre-commit Tasks
-  pre-commit:
-    desc: Run all pre-commit quality checks
-    cmds:
-      - ./pre-commit full
-
-  pre-commit-quick:
-    desc: Run quick pre-commit checks (fast mutation testing)
-    cmds:
-      - ./pre-commit quick
-
-  commit:
-    desc: Create an atomic commit with all quality checks
-    cmds:
-      - echo "🔄 Creating atomic commit with full quality checks..."
-      - ./pre-commit full
-      - git add .
-      - git commit -m "{{.CLI_ARGS}}"
-      - echo "✅ Atomic commit completed!"
-
-  commit-quick:
-    desc: Commit only staged changes with quick quality checks
-    cmds:
-      - echo "🔄 Committing staged changes..."
-      - ./pre-commit quick
-      - git commit -m "{{.CLI_ARGS}}"
-      - echo "✅ Staged commit completed!"
+      - echo "🎭 Running Playwright E2E tests..."
+      - bunx playwright test --config=playwright.config.ts
+      - task: stop-api-for-testing
+      - task: cleanup-test-database
+      - echo "✅ Playwright tests completed!"

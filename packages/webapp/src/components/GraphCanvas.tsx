@@ -244,6 +244,7 @@ const VisGraphComponent: React.FC<VisGraphComponentProps> = ({
   return (
     <div 
       ref={containerRef}
+      data-testid="graph-canvas"
       style={{ width: '100%', height: '100vh' }}
     />
   )
@@ -269,7 +270,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
           return res.json()
         })
       )
-      return response
+      return response.data
     })
 
     Effect.runPromise(loadData)

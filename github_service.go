@@ -188,10 +188,10 @@ func executeRepositoryRequest(ctx *gofr.Context, githubSvc any, orgName string, 
 	}
 
 	headers := buildGitHubRequestHeaders()
-	resp, err := githubSvc.(interface {
-		GetWithHeaders(ctx *gofr.Context, path string, query map[string]any, headers map[string]string) (*http.Response, error)
-	}).GetWithHeaders(ctx, fmt.Sprintf("orgs/%s/repos", orgName), query, headers)
-
+	
+	// Get the GitHub service from context (same pattern as working organization request)
+	githubHttpSvc := ctx.GetHTTPService("github")
+	resp, err := githubHttpSvc.GetWithHeaders(ctx, fmt.Sprintf("orgs/%s/repos", orgName), query, headers)
 	if err != nil {
 		ctx.Logger.Errorf("Failed to fetch repositories for %s (page %d): %v", orgName, page, err)
 		return nil, &gofrhttp.ErrorRequestTimeout{}
