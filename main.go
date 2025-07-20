@@ -565,41 +565,90 @@ func storeOrganizationData(ctx *gofr.Context, conn *Neo4jConnection, org GitHubO
 	if err != nil {
 		return fmt.Errorf("failed to create Neo4j session: %w", err)
 	}
-	defer closeNeo4jSession(ctx, session)
+	defer func() {
+		if err := closeNeo4jSession(ctx, session); err != nil {
+			ctx.Logger.Errorf("Failed to close Neo4j session: %v", err)
+		}
+	}()
 
-	// Store organization
-	if err := storeOrganization(ctx, session, org); err != nil {
+	// Create storage context for all operations
+	storageCtx := &storageContext{
+		ctx:      ctx,
+		session:  session,
+		orgLogin: org.Login,
+	}
+
+	// Execute all storage operations
+	return executeStorageOperations(storageCtx, org, repos, teams, topics, codeowners)
+}
+
+// storageContext holds the context for storage operations
+type storageContext struct {
+	ctx      *gofr.Context
+	session  *Neo4jSession
+	orgLogin string
+}
+
+// executeStorageOperations executes all storage operations in sequence
+func executeStorageOperations(sctx *storageContext, org GitHubOrganization, repos []GitHubRepository, teams []GitHubTeam, topics []GitHubTopic, codeowners []GitHubCodeowners) error {
+	// Store organization first
+	if err := storeOrganization(sctx.ctx, sctx.session, org); err != nil {
 		return fmt.Errorf("failed to store organization: %w", err)
 	}
 
-	// Store repositories
+	// Store all other entities
+	if err := storeRepositories(sctx, repos); err != nil {
+		return err
+	}
+
+	if err := storeTeams(sctx, teams); err != nil {
+		return err
+	}
+
+	if err := storeTopics(sctx, topics); err != nil {
+		return err
+	}
+
+	return storeAllCodeowners(sctx, codeowners)
+}
+
+// storeRepositories stores all repositories
+func storeRepositories(sctx *storageContext, repos []GitHubRepository) error {
 	for _, repo := range repos {
-		if err := storeRepository(ctx, session, repo, org.Login); err != nil {
+		if err := storeRepository(sctx.ctx, sctx.session, repo, sctx.orgLogin); err != nil {
 			return fmt.Errorf("failed to store repository %s: %w", repo.Name, err)
 		}
 	}
+	return nil
+}
 
-	// Store teams
+// storeTeams stores all teams
+func storeTeams(sctx *storageContext, teams []GitHubTeam) error {
 	for _, team := range teams {
-		if err := storeTeam(ctx, session, team, org.Login); err != nil {
+		if err := storeTeam(sctx.ctx, sctx.session, team, sctx.orgLogin); err != nil {
 			return fmt.Errorf("failed to store team %s: %w", team.Name, err)
 		}
 	}
+	return nil
+}
 
-	// Store topics
+// storeTopics stores all topics
+func storeTopics(sctx *storageContext, topics []GitHubTopic) error {
 	for _, topic := range topics {
-		if err := storeTopic(ctx, session, topic, org.Login); err != nil {
+		if err := storeTopic(sctx.ctx, sctx.session, topic, sctx.orgLogin); err != nil {
 			return fmt.Errorf("failed to store topic %s: %w", topic.Name, err)
 		}
 	}
+	return nil
+}
 
-	// Store CODEOWNERS
+// storeAllCodeowners stores all CODEOWNERS
+func storeAllCodeowners(sctx *storageContext, codeowners []GitHubCodeowners) error {
 	for _, codeowner := range codeowners {
-		if err := storeCodeowners(ctx, session, codeowner, org.Login); err != nil {
+		if err := storeCodeowners(sctx.ctx, sctx.session, codeowner, sctx.orgLogin); err != nil {
 			return fmt.Errorf("failed to store CODEOWNERS for %s: %w", codeowner.Repository, err)
 		}
 	}
-
 	return nil
 }
 

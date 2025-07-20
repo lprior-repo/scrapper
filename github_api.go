@@ -164,21 +164,27 @@ func collectTopicsFromRepositories(repos []GitHubRepository) []GitHubTopic {
 
 // Helper functions (Pure Core)
 func getStringFromMap(m map[string]interface{}, key string) string {
-	if value, exists := m[key]; exists {
-		if str, ok := value.(string); ok {
-			return str
-		}
-		if i, ok := value.(int); ok {
-			return fmt.Sprintf("%d", i)
-		}
-		if f, ok := value.(float64); ok {
-			return fmt.Sprintf("%.0f", f)
-		}
-		if i64, ok := value.(int64); ok {
-			return fmt.Sprintf("%d", i64)
-		}
+	value, exists := m[key]
+	if !exists {
+		return ""
 	}
-	return ""
+	return convertToString(value)
+}
+
+// convertToString converts various types to string representation
+func convertToString(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case int:
+		return fmt.Sprintf("%d", v)
+	case float64:
+		return fmt.Sprintf("%.0f", v)
+	case int64:
+		return fmt.Sprintf("%d", v)
+	default:
+		return ""
+	}
 }
 
 func getIntFromMap(m map[string]interface{}, key string) int {
