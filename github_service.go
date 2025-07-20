@@ -104,7 +104,8 @@ func fetchGitHubRepositoriesWithService(ctx *gofr.Context, orgName string, maxRe
 		return nil, err
 	}
 
-	allRepos, err := fetchAllRepositoryPages(ctx, orgName, maxRepos)
+	githubSvc := ctx.GetHTTPService("github")
+	allRepos, err := fetchAllRepositoryPages(ctx, githubSvc, orgName, maxRepos)
 	if err != nil {
 		return nil, err
 	}
@@ -131,13 +132,13 @@ func validateRepositoryParams(orgName string, maxRepos int) error {
 }
 
 // fetchAllRepositoryPages fetches all repository pages up to maxRepos
-func fetchAllRepositoryPages(ctx *gofr.Context, orgName string, maxRepos int) ([]GitHubRepository, error) {
+func fetchAllRepositoryPages(ctx *gofr.Context, githubSvc any, orgName string, maxRepos int) ([]GitHubRepository, error) {
 	var allRepos []GitHubRepository
 	page := 1
 	perPage := 100
 
 	for len(allRepos) < maxRepos {
-		repos, shouldContinue, err := fetchRepositoryPage(ctx, orgName, page, perPage)
+		repos, shouldContinue, err := fetchRepositoryPage(ctx, githubSvc, orgName, page, perPage)
 		if err != nil {
 			return nil, err
 		}
@@ -154,10 +155,10 @@ func fetchAllRepositoryPages(ctx *gofr.Context, orgName string, maxRepos int) ([
 }
 
 // fetchRepositoryPage fetches a single page of repositories
-func fetchRepositoryPage(ctx *gofr.Context, orgName string, page, perPage int) ([]GitHubRepository, bool, error) {
+func fetchRepositoryPage(ctx *gofr.Context, githubSvc any, orgName string, page, perPage int) ([]GitHubRepository, bool, error) {
 	ctx.Logger.Debugf("Fetching repositories page %d for organization %s", page, orgName)
 
-	resp, err := executeRepositoryRequest(ctx, orgName, page, perPage)
+	resp, err := executeRepositoryRequest(ctx, githubSvc, orgName, page, perPage)
 	if err != nil {
 		return nil, false, err
 	}
@@ -179,7 +180,7 @@ func fetchRepositoryPage(ctx *gofr.Context, orgName string, page, perPage int) (
 }
 
 // executeRepositoryRequest executes a repository API request
-func executeRepositoryRequest(ctx *gofr.Context, orgName string, page, perPage int) (*http.Response, error) {
+func executeRepositoryRequest(ctx *gofr.Context, githubSvc any, orgName string, page, perPage int) (*http.Response, error) {
 	query := map[string]any{
 		"page":     fmt.Sprintf("%d", page),
 		"per_page": fmt.Sprintf("%d", perPage),
@@ -245,224 +246,133 @@ func limitRepositories(ctx *gofr.Context, allRepos []GitHubRepository, maxRepos 
 
 // fetchGitHubTeamsWithService fetches teams using GoFr HTTP service
 func fetchGitHubTeamsWithService(ctx *gofr.Context, orgName string, maxTeams int) ([]GitHubTeam, error) {
-	if err := validateTeamFetchParams(orgName, maxTeams); err != nil {
-		return nil, err
-	}
-
-	return fetchAllTeams(ctx, orgName, maxTeams)
-}
-
-// validateTeamFetchParams validates the parameters for fetching teams
-func validateTeamFetchParams(orgName string, maxTeams int) error {
 	if orgName == "" {
-		return &gofrhttp.ErrorMissingParam{
+		return nil, &gofrhttp.ErrorMissingParam{
 			Params: []string{"organization_name"},
 		}
 	}
 
 	if maxTeams <= 0 {
-		return &gofrhttp.ErrorInvalidParam{
+		return nil, &gofrhttp.ErrorInvalidParam{
 			Params: []string{"max_teams", fmt.Sprintf("%d", maxTeams)},
 		}
 	}
 
-	return nil
-}
+	githubSvc := ctx.GetHTTPService("github")
 
-// fetchAllTeams fetches all teams with pagination
-func fetchAllTeams(ctx *gofr.Context, orgName string, maxTeams int) ([]GitHubTeam, error) {
 	var allTeams []GitHubTeam
 	page := 1
 	perPage := 100
 
 	for len(allTeams) < maxTeams {
-		teams, hasMore, err := fetchTeamPage(ctx, orgName, page, perPage)
-		if err != nil {
-			return nil, err
+		query := map[string]any{
+			"page":     fmt.Sprintf("%d", page),
+			"per_page": fmt.Sprintf("%d", perPage),
 		}
 
-		allTeams = appendTeamsWithLimit(allTeams, teams, maxTeams)
-		
-		if !hasMore || len(allTeams) >= maxTeams {
+		headers := buildGitHubRequestHeaders()
+		resp, err := githubSvc.GetWithHeaders(ctx, fmt.Sprintf("orgs/%s/teams", orgName), query, headers)
+		if err != nil {
+			return nil, &gofrhttp.ErrorRequestTimeout{}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, &gofrhttp.ErrorEntityNotFound{
+				Name:  "organization_teams",
+				Value: orgName,
+			}
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, &gofrhttp.ErrorInvalidParam{
+				Params: []string{"github_api_status", fmt.Sprintf("status_code_%d", resp.StatusCode)},
+			}
+		}
+
+		var teams []GitHubTeam
+		if err := json.NewDecoder(resp.Body).Decode(&teams); err != nil {
+			return nil, &gofrhttp.ErrorInvalidParam{
+				Params: []string{"response_format", err.Error()},
+			}
+		}
+
+		if len(teams) == 0 {
 			break
 		}
-		
+
+		allTeams = append(allTeams, teams...)
 		page++
+
+		if len(teams) < perPage {
+			break
+		}
+	}
+
+	if len(allTeams) > maxTeams {
+		allTeams = allTeams[:maxTeams]
 	}
 
 	return allTeams, nil
 }
 
-// fetchTeamPage fetches a single page of teams
-func fetchTeamPage(ctx *gofr.Context, orgName string, page, perPage int) ([]GitHubTeam, bool, error) {
-	query := map[string]any{
-		"page":     fmt.Sprintf("%d", page),
-		"per_page": fmt.Sprintf("%d", perPage),
-	}
-
-	headers := buildGitHubRequestHeaders()
-	
-	// Get the GitHub service from context (same pattern as working organization request)
-	githubHttpSvc := ctx.GetHTTPService("github")
-	resp, err := githubHttpSvc.GetWithHeaders(ctx, fmt.Sprintf("orgs/%s/teams", orgName), query, headers)
-	if err != nil {
-		return nil, false, &gofrhttp.ErrorRequestTimeout{}
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			ctx.Logger.Errorf("Failed to close response body: %v", err)
-		}
-	}()
-
-	if err := checkTeamResponseStatus(resp, orgName); err != nil {
-		return nil, false, err
-	}
-
-	teams, err := decodeTeamResponse(resp)
-	if err != nil {
-		return nil, false, err
-	}
-
-	hasMore := len(teams) == perPage
-	return teams, hasMore, nil
-}
-
-// checkTeamResponseStatus checks the HTTP response status
-func checkTeamResponseStatus(resp *http.Response, orgName string) error {
-	if resp.StatusCode == http.StatusNotFound {
-		return &gofrhttp.ErrorEntityNotFound{
-			Name:  "organization_teams",
-			Value: orgName,
-		}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return &gofrhttp.ErrorInvalidParam{
-			Params: []string{"github_api_status", fmt.Sprintf("status_code_%d", resp.StatusCode)},
-		}
-	}
-
-	return nil
-}
-
-// decodeTeamResponse decodes the JSON response into teams
-func decodeTeamResponse(resp *http.Response) ([]GitHubTeam, error) {
-	var teams []GitHubTeam
-	if err := json.NewDecoder(resp.Body).Decode(&teams); err != nil {
-		return nil, &gofrhttp.ErrorInvalidParam{
-			Params: []string{"response_format", err.Error()},
-		}
-	}
-	return teams, nil
-}
-
-// appendTeamsWithLimit appends teams up to the specified limit
-func appendTeamsWithLimit(allTeams, newTeams []GitHubTeam, maxTeams int) []GitHubTeam {
-	remaining := maxTeams - len(allTeams)
-	if remaining <= 0 {
-		return allTeams
-	}
-	
-	if len(newTeams) > remaining {
-		return append(allTeams, newTeams[:remaining]...)
-	}
-	
-	return append(allTeams, newTeams...)
-}
-
 // fetchGitHubCodeownersWithService fetches CODEOWNERS file using GoFr HTTP service
 func fetchGitHubCodeownersWithService(ctx *gofr.Context, owner, repo string) (GitHubCodeowners, error) {
-	if err := validateCodeownersParams(owner, repo); err != nil {
-		return GitHubCodeowners{}, err
-	}
-
-	rules := tryFetchCodeownersFromLocations(ctx, owner, repo)
-
-	return GitHubCodeowners{
-		Repository: fmt.Sprintf("%s/%s", owner, repo),
-		Rules:      rules,
-		Errors:     []GitHubCodeownersError{},
-	}, nil
-}
-
-// validateCodeownersParams validates the parameters for fetching CODEOWNERS
-func validateCodeownersParams(owner, repo string) error {
 	if owner == "" {
-		return &gofrhttp.ErrorMissingParam{
+		return GitHubCodeowners{}, &gofrhttp.ErrorMissingParam{
 			Params: []string{"owner"},
 		}
 	}
 
 	if repo == "" {
-		return &gofrhttp.ErrorMissingParam{
+		return GitHubCodeowners{}, &gofrhttp.ErrorMissingParam{
 			Params: []string{"repository"},
 		}
 	}
 
-	return nil
-}
+	githubSvc := ctx.GetHTTPService("github")
 
-// tryFetchCodeownersFromLocations tries to fetch CODEOWNERS from multiple locations
-func tryFetchCodeownersFromLocations(ctx *gofr.Context, owner, repo string) []GitHubCodeownersRule {
-	locations := getCodeownersLocations(owner, repo)
-
-	for _, location := range locations {
-		if rules := tryFetchFromLocation(ctx, location); rules != nil {
-			return rules
-		}
-	}
-
-	return []GitHubCodeownersRule{}
-}
-
-// getCodeownersLocations returns the standard locations for CODEOWNERS files
-func getCodeownersLocations(owner, repo string) []string {
-	return []string{
+	// Try different CODEOWNERS locations
+	locations := []string{
 		fmt.Sprintf("repos/%s/%s/contents/CODEOWNERS", owner, repo),
 		fmt.Sprintf("repos/%s/%s/contents/.github/CODEOWNERS", owner, repo),
 		fmt.Sprintf("repos/%s/%s/contents/docs/CODEOWNERS", owner, repo),
 	}
-}
 
-// tryFetchFromLocation attempts to fetch CODEOWNERS from a single location
-func tryFetchFromLocation(ctx *gofr.Context, location string) []GitHubCodeownersRule {
-	content, err := fetchFileContent(ctx, location)
-	if err != nil {
-		return nil
-	}
-
-	return parseCodeownersContent(content)
-}
-
-// fetchFileContent fetches the content of a file from GitHub
-func fetchFileContent(ctx *gofr.Context, location string) (string, error) {
-	headers := buildGitHubRequestHeaders()
-	
-	// Get the GitHub service from context (same pattern as working organization request)
-	githubHttpSvc := ctx.GetHTTPService("github")
-	resp, err := githubHttpSvc.GetWithHeaders(ctx, location, nil, headers)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			ctx.Logger.Errorf("Failed to close response body: %v", err)
+	for _, location := range locations {
+		headers := buildGitHubRequestHeaders()
+		resp, err := githubSvc.GetWithHeaders(ctx, location, nil, headers)
+		if err != nil {
+			continue
 		}
-	}()
+		defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("status code %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusOK {
+			var fileContent struct {
+				Content string `json:"content"`
+			}
+
+			if err := json.NewDecoder(resp.Body).Decode(&fileContent); err != nil {
+				continue
+			}
+
+			// Parse CODEOWNERS content
+			rules := parseCodeownersContent(fileContent.Content)
+
+			return GitHubCodeowners{
+				Repository: fmt.Sprintf("%s/%s", owner, repo),
+				Rules:      rules,
+				Errors:     []GitHubCodeownersError{},
+			}, nil
+		}
 	}
 
-	var fileContent struct {
-		Content string `json:"content"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&fileContent); err != nil {
-		return "", err
-	}
-
-	return fileContent.Content, nil
+	// Return empty CODEOWNERS (not an error - many repos don't have CODEOWNERS)
+	return GitHubCodeowners{
+		Repository: fmt.Sprintf("%s/%s", owner, repo),
+		Rules:      []GitHubCodeownersRule{},
+		Errors:     []GitHubCodeownersError{},
+	}, nil
 }
 
 // parseCodeownersContent parses base64-encoded CODEOWNERS content (Pure Core)

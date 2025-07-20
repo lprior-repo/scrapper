@@ -245,13 +245,7 @@ func cleanupTempFiles(verbose bool) error {
 		fmt.Println("🗑️  Cleaning up temporary files...")
 	}
 
-	tempPaths := getTempPaths()
-	return removePaths(tempPaths, verbose)
-}
-
-// getTempPaths returns the list of temporary paths to clean up
-func getTempPaths() []string {
-	return []string{
+	tempPaths := []string{
 		"coverage.out",
 		"coverage.html",
 		"gosec-report.json",
@@ -262,25 +256,20 @@ func getTempPaths() []string {
 		"ui/stryker-tmp/",
 		"test_api.go", // Clean up our test file
 	}
-}
 
-// removePaths removes the given paths and optionally logs the operation
-func removePaths(paths []string, verbose bool) error {
-	for _, path := range paths {
-		removePathWithLogging(path, verbose)
+	for _, path := range tempPaths {
+		if verbose {
+			fmt.Printf("   Removing: %s\n", path)
+		}
+
+		if err := os.RemoveAll(path); err != nil {
+			if verbose {
+				fmt.Printf("   Warning: Failed to remove %s: %v\n", path, err)
+			}
+		}
 	}
+
 	return nil
-}
-
-// removePathWithLogging removes a single path with optional logging
-func removePathWithLogging(path string, verbose bool) {
-	if verbose {
-		fmt.Printf("   Removing: %s\n", path)
-	}
-
-	if err := os.RemoveAll(path); err != nil && verbose {
-		fmt.Printf("   Warning: Failed to remove %s: %v\n", path, err)
-	}
 }
 
 // waitForPortsFree waits for ports to become available
@@ -290,52 +279,31 @@ func waitForPortsFree(ctx context.Context, ports []int, verbose bool) error {
 	}
 
 	for _, port := range ports {
-		if err := waitForSinglePort(ctx, port, verbose); err != nil {
-			return err
+		for {
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("timeout waiting for port %d to become free", port)
+			default:
+			}
+
+			// Check if port is still in use
+			cmd := exec.CommandContext(ctx, "lsof", "-ti", fmt.Sprintf(":%d", port))
+			err := cmd.Run()
+
+			if err != nil {
+				// Port is free
+				if verbose {
+					fmt.Printf("   Port %d is now free\n", port)
+				}
+				break
+			}
+
+			// Wait a bit before checking again
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 
 	return nil
-}
-
-// waitForSinglePort waits for a single port to become available
-func waitForSinglePort(ctx context.Context, port int, verbose bool) error {
-	for {
-		if err := checkContextDone(ctx, port); err != nil {
-			return err
-		}
-
-		if isPortFree(ctx, port) {
-			logPortFree(port, verbose)
-			return nil
-		}
-
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-// checkContextDone checks if the context has been cancelled
-func checkContextDone(ctx context.Context, port int) error {
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("timeout waiting for port %d to become free", port)
-	default:
-		return nil
-	}
-}
-
-// isPortFree checks if a port is free by attempting to run lsof
-func isPortFree(ctx context.Context, port int) bool {
-	cmd := exec.CommandContext(ctx, "lsof", "-ti", fmt.Sprintf(":%d", port))
-	err := cmd.Run()
-	return err != nil // If lsof fails, port is free
-}
-
-// logPortFree logs that a port is now free if verbose mode is enabled
-func logPortFree(port int, verbose bool) {
-	if verbose {
-		fmt.Printf("   Port %d is now free\n", port)
-	}
 }
 
 
