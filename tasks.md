@@ -3,6 +3,7 @@
 ## Current Sprint Tasks
 
 ### High Priority
+
 - [ ] **Implement Zod validation schemas in backend**
   - Integrate shared Zod schemas for API validation
   - Replace manual type checking with schema validation
@@ -33,6 +34,7 @@
   - Estimated: 3 hours
 
 ### Medium Priority
+
 - [ ] **Enhance graph filtering capabilities**
   - Add entity type filters (show/hide repos, teams, users)
   - Implement search functionality
@@ -53,6 +55,7 @@
   - Estimated: 8 hours
 
 ### Low Priority
+
 - [ ] **Implement graph export functionality**
   - Export as PNG/SVG
   - Export graph data as JSON
@@ -68,6 +71,7 @@
 ## Backlog Items
 
 ### Features
+
 - [ ] **Multi-organization support**
   - Allow scanning multiple organizations
   - Cross-organization relationship visualization
@@ -109,6 +113,7 @@
   - Event stream processing
 
 ### Enhancements
+
 - [ ] **Improved CODEOWNERS parsing**
   - Support for complex patterns
   - Handle edge cases better
@@ -132,11 +137,13 @@
 ## Bug Tracking
 
 ### Critical Bugs
+
 - [x] **React error when nodes/edges are undefined** (Fixed in commit bfd3943)
   - Status: Resolved
   - Fix: Added null checks in GraphCanvas component
 
 ### High Priority Bugs
+
 - [ ] **Memory leak in graph component**
   - Issue: Graph instance not properly cleaned up on unmount
   - Impact: Performance degradation over time
@@ -148,6 +155,7 @@
   - Reproduction: Scan organization with users in multiple teams
 
 ### Medium Priority Bugs
+
 - [ ] **Graph layout instability**
   - Issue: Nodes jump around on data refresh
   - Impact: Poor user experience
@@ -159,6 +167,7 @@
   - Reproduction: Scan microsoft or google organizations
 
 ### Low Priority Bugs
+
 - [ ] **Tooltip positioning issues**
   - Issue: Tooltips appear off-screen near edges
   - Impact: Information not visible
@@ -172,6 +181,7 @@
 ## Feature Requests
 
 ### From Users
+
 1. **GitLab support**
    - Support for GitLab organizations
    - Parse GitLab CODEOWNERS format
@@ -197,6 +207,7 @@
    - Votes: 3
 
 ### From Internal Team
+
 1. **Performance dashboard**
    - API response time metrics
    - Database query performance
@@ -210,6 +221,7 @@
 ## Technical Debt Items
 
 ### High Priority
+
 - [ ] **Refactor GitHub API client**
   - Current: Monolithic implementation
   - Target: Modular service pattern
@@ -226,6 +238,7 @@
   - Go module updates
 
 ### Medium Priority
+
 - [ ] **Improve test coverage**
   - Current: ~65% coverage
   - Target: >80% coverage
@@ -242,6 +255,7 @@
   - Document query patterns
 
 ### Low Priority
+
 - [ ] **Code documentation**
   - Add missing JSDoc comments
   - Update architecture diagrams
@@ -255,6 +269,7 @@
 ## Performance Improvements Needed
 
 ### Backend
+
 - [ ] **Implement request caching**
   - Cache GitHub API responses
   - Cache computed statistics
@@ -271,6 +286,7 @@
   - Estimated improvement: 3x faster scans
 
 ### Frontend
+
 - [ ] **Implement virtual scrolling**
   - For large node lists
   - For statistics tables
@@ -289,6 +305,7 @@
 ## Documentation Tasks
 
 ### User Documentation
+
 - [ ] **Getting Started Guide**
   - Installation instructions
   - First scan walkthrough
@@ -305,6 +322,7 @@
   - Troubleshooting
 
 ### Developer Documentation
+
 - [ ] **Architecture Overview**
   - System design document
   - Data flow diagrams
@@ -323,6 +341,7 @@
 ## Testing Coverage Gaps
 
 ### Backend
+
 - [ ] **Graph algorithm tests**
   - Path finding algorithms
   - Cycle detection
@@ -339,6 +358,7 @@
   - Coverage: Currently 0%, target 50%
 
 ### Frontend
+
 - [ ] **Component rendering tests**
   - Ensure App component renders without errors
   - Test GraphCanvas displays nodes and edges correctly
@@ -375,6 +395,7 @@
   - Coverage: Currently 40%, target 70%
 
 ### End-to-End
+
 - [ ] **Complete user journeys**
   - First-time setup
   - Organization analysis workflow
@@ -384,6 +405,7 @@
 ## Sprint Planning
 
 ### Next Sprint (Week of July 22, 2025)
+
 1. Implement Zod validation schemas in backend
 2. Update frontend to use shared Zod schemas
 3. Fix undefined nodes/edges error
@@ -391,6 +413,7 @@
 5. Write Getting Started Guide
 
 ### Following Sprint (Week of July 29, 2025)
+
 1. Implement comprehensive error handling
 2. Add loading states to frontend
 3. Add Zod schema validation tests
@@ -398,6 +421,7 @@
 5. Improve scan performance
 
 ## Definition of Done
+
 - [ ] Code is written and peer-reviewed
 - [ ] Unit tests are written and passing
 - [ ] Integration tests are updated if needed

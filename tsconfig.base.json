@@ -13,15 +13,15 @@
     "isolatedModules": true,
     "noEmit": true,
     "sourceMap": true,
-    "declaration": false,
-    "declarationMap": false,
+    "declaration": true,
+    "declarationMap": true,
     "removeComments": false,
     "importHelpers": true,
     "downlevelIteration": true,
     "experimentalDecorators": false,
     "emitDecoratorMetadata": false,
     "useDefineForClassFields": true,
-    
+
     // STRICT: Type checking
     "strict": true,
     "exactOptionalPropertyTypes": true,
@@ -35,16 +35,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    
+
     // Module resolution
     "types": ["bun-types"]
   },
   "include": [],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "build",
-    "**/*.spec.ts",
-    "**/*.test.ts"
-  ]
+  "exclude": ["node_modules", "dist", "build", "**/*.spec.ts", "**/*.test.ts"]
 }

@@ -3,9 +3,11 @@
 ## Project Overview and Goals
 
 ### Vision
+
 Create a comprehensive GitHub organization scanner and codeowners visualization tool that provides deep insights into code ownership patterns, team structures, and repository relationships through an intuitive graph interface.
 
 ### Primary Goals
+
 1. **Automated Organization Analysis**: Scan GitHub organizations to extract comprehensive data about repositories, teams, users, and ownership patterns
 2. **CODEOWNERS Intelligence**: Parse and analyze CODEOWNERS files to understand code ownership distribution and coverage
 3. **Interactive Visualization**: Provide an intuitive graph-based interface for exploring relationships between entities
@@ -13,6 +15,7 @@ Create a comprehensive GitHub organization scanner and codeowners visualization 
 5. **Enterprise-Ready**: Build a scalable, secure, and performant solution suitable for large organizations
 
 ### Target Users
+
 - Engineering managers seeking visibility into code ownership
 - DevOps teams managing repository permissions
 - Security teams auditing access controls
@@ -21,7 +24,9 @@ Create a comprehensive GitHub organization scanner and codeowners visualization 
 ## Architecture Decisions
 
 ### Backend: Go Language
+
 **Rationale:**
+
 - Excellent concurrency support for parallel GitHub API calls
 - Strong typing for reliable data processing
 - Native compilation for optimal performance
@@ -29,24 +34,30 @@ Create a comprehensive GitHub organization scanner and codeowners visualization 
 - Built-in testing framework
 
 **Architecture Pattern: Pure Core/Impure Shell**
+
 - **Pure Core**: Business logic, data transformations, and algorithms
 - **Impure Shell**: I/O operations, API calls, database interactions
 - Benefits: Enhanced testability, clear separation of concerns, easier maintenance
 
 ### Frontend: React with TypeScript
+
 **Rationale:**
+
 - Component-based architecture for reusable UI elements
 - TypeScript for type safety and better developer experience
 - Large ecosystem of visualization libraries
 - Strong community support
 
 **Key Libraries:**
+
 - **Effect-TS**: Functional programming patterns for robust error handling
 - **cytoscape**: Graph visualization with interactive capabilities
 - **Bun**: Fast JavaScript runtime and package manager
 
 ### Database: Neo4j
+
 **Rationale:**
+
 - Native graph database optimized for relationship queries
 - Cypher query language ideal for traversing ownership hierarchies
 - Built-in visualization tools for debugging
@@ -54,6 +65,7 @@ Create a comprehensive GitHub organization scanner and codeowners visualization 
 - ACID compliance for data integrity
 
 ### Infrastructure
+
 - **Docker**: Containerization for consistent deployments
 - **Docker Compose**: Multi-container orchestration
 - **GitHub Actions**: CI/CD pipeline
@@ -61,12 +73,14 @@ Create a comprehensive GitHub organization scanner and codeowners visualization 
 ## API Design Principles
 
 ### RESTful Architecture
+
 1. **Resource-Oriented**: URLs represent resources (organizations, repositories, teams)
 2. **HTTP Methods**: Proper use of GET, POST, PUT, DELETE
 3. **Status Codes**: Meaningful HTTP status codes for all responses
 4. **Versioning**: API versioning through URL path (/api/v1/)
 
 ### Endpoint Structure
+
 ```
 /api/v1/
 ├── organizations/
@@ -83,6 +97,7 @@ Create a comprehensive GitHub organization scanner and codeowners visualization 
 ```
 
 ### Response Format
+
 ```json
 {
   "data": {},
@@ -95,6 +110,7 @@ Create a comprehensive GitHub organization scanner and codeowners visualization 
 ```
 
 ### Error Handling
+
 - Consistent error structure
 - Detailed error messages for debugging
 - Error codes for programmatic handling
@@ -103,6 +119,7 @@ Create a comprehensive GitHub organization scanner and codeowners visualization 
 ## Frontend Architecture
 
 ### Component Hierarchy
+
 ```
 App
 ├── Layout
@@ -123,12 +140,14 @@ App
 ```
 
 ### State Management with Effect-TS
+
 1. **Service Layer**: Encapsulate API calls and business logic
 2. **Effect Patterns**: Use Effect for async operations and error handling
 3. **Type Safety**: Leverage TypeScript for compile-time guarantees
 4. **Functional Approach**: Immutable data structures and pure functions
 
 ### Graph Visualization with vis-network
+
 1. **Dynamic Rendering**: Render large graphs efficiently
 2. **Interactive Features**: Pan, zoom, node selection
 3. **Custom Styling**: Color coding by entity type
@@ -138,6 +157,7 @@ App
 ## Testing Strategy
 
 ### Backend Testing
+
 1. **Unit Tests** (70%)
    - Pure core functions
    - Data transformations
@@ -153,6 +173,7 @@ App
    - Multi-service interactions
 
 ### Frontend Testing
+
 1. **Component Tests**
    - React Testing Library
    - User interaction simulation
@@ -164,12 +185,14 @@ App
    - Route navigation
 
 ### API Testing with Hurl
+
 - Comprehensive test suites for all endpoints
 - Environment-specific configurations
 - Response validation
 - Performance benchmarks
 
 ### E2E Testing with Playwright
+
 - User journey tests
 - Cross-browser compatibility
 - Visual regression testing
@@ -178,6 +201,7 @@ App
 ## Deployment Strategy
 
 ### Development Environment
+
 ```yaml
 - Local development with hot reload
 - Docker Compose for dependencies
@@ -186,6 +210,7 @@ App
 ```
 
 ### Staging Environment
+
 ```yaml
 - Production-like setup
 - Automated deployments from main branch
@@ -194,6 +219,7 @@ App
 ```
 
 ### Production Environment
+
 ```yaml
 - High availability setup
 - Load balancing
@@ -202,6 +228,7 @@ App
 ```
 
 ### CI/CD Pipeline
+
 1. **Build Stage**
    - Compile Go application
    - Build React application
@@ -221,6 +248,7 @@ App
 ## Performance Optimization Plans
 
 ### Backend Optimizations
+
 1. **Concurrent Processing**
    - Parallel GitHub API calls with rate limiting
    - Goroutine pools for batch operations
@@ -237,6 +265,7 @@ App
    - Connection pooling
 
 ### Frontend Optimizations
+
 1. **Bundle Optimization**
    - Code splitting
    - Tree shaking
@@ -255,6 +284,7 @@ App
 ## Future Roadmap
 
 ### Phase 1: Core Features (Q1 2025)
+
 - [x] Basic GitHub scanning
 - [x] Neo4j integration
 - [x] Graph visualization
@@ -262,6 +292,7 @@ App
 - [ ] API documentation
 
 ### Phase 2: Enhanced Analytics (Q2 2025)
+
 - [ ] Ownership coverage reports
 - [ ] Team collaboration metrics
 - [ ] Historical trend analysis
@@ -269,6 +300,7 @@ App
 - [ ] Export capabilities
 
 ### Phase 3: Enterprise Features (Q3 2025)
+
 - [ ] Multi-organization support
 - [ ] SAML/SSO integration
 - [ ] Advanced permissions
@@ -276,6 +308,7 @@ App
 - [ ] Compliance reports
 
 ### Phase 4: Advanced Features (Q4 2025)
+
 - [ ] AI-powered insights
 - [ ] Predictive analytics
 - [ ] Integration with CI/CD tools
@@ -283,6 +316,7 @@ App
 - [ ] API webhooks
 
 ### Long-term Vision
+
 - **Platform Expansion**: Support for GitLab, Bitbucket
 - **Machine Learning**: Ownership recommendations
 - **Real-time Updates**: WebSocket-based live updates
@@ -290,6 +324,7 @@ App
 - **Plugin System**: Extensible architecture
 
 ## Technical Debt Management
+
 1. **Regular Refactoring**: Allocate 20% of sprint capacity
 2. **Code Reviews**: Mandatory peer reviews
 3. **Documentation**: Keep docs in sync with code
@@ -297,6 +332,7 @@ App
 5. **Performance Monitoring**: Continuous performance tracking
 
 ## Success Metrics
+
 1. **Performance**: API response time < 500ms
 2. **Reliability**: 99.9% uptime
 3. **Scalability**: Support 10,000+ repositories

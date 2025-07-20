@@ -1,4 +1,4 @@
-import React from 'react';
+import React from 'react'
 
 export const GraphLoadingSpinner: React.FC = () => (
   <div
@@ -13,4 +13,4 @@ export const GraphLoadingSpinner: React.FC = () => (
   >
     <div>Loading graph data...</div>
   </div>
-);
+)

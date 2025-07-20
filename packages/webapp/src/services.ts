@@ -1,19 +1,21 @@
-import { Context, Effect, Layer } from 'effect';
-import { ParseResult } from '@effect/schema';
-import { UnknownException } from 'effect/Cause';
-import { 
+import { Context, Effect, Layer } from 'effect'
+import { ParseResult } from '@effect/schema'
+import { UnknownException } from 'effect/Cause'
+import {
   GraphResponseSchema,
   validateApiResponseSync,
   type GraphNode,
   type GraphEdge,
   type GraphResponse,
-} from '@overseer/shared';
+} from '@overseer/shared'
 
 // Re-export types for compatibility
-export type { GraphNode, GraphEdge, GraphResponse };
+export type { GraphNode, GraphEdge, GraphResponse }
 
 // Utility functions
-export const extractTopicsFromNodes = (nodes: readonly GraphNode[]): readonly GraphTopic[] => {
+export const extractTopicsFromNodes = (
+  nodes: readonly GraphNode[]
+): readonly GraphTopic[] => {
   return nodes
     .filter((node) => node.type === 'topic')
     .map((node) => ({
@@ -29,10 +31,10 @@ export const extractNodesByType = (
   return nodes.filter((node) => node.type === type)
 }
 
-// Graph topic type for utility functions  
+// Graph topic type for utility functions
 export interface GraphTopic {
-  readonly name: string;
-  readonly count: number;
+  readonly name: string
+  readonly count: number
 }
 
 // API Client Service
@@ -63,14 +65,19 @@ export const ApiClientLive = Layer.succeed(
           })
         )
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
+        response.ok ||
+          Effect.runSync(
+            Effect.fail(new Error(`HTTP error! status: ${response.status}`))
+          )
 
         const json = yield* Effect.tryPromise(() => response.json())
 
         // Use the shared schema validation
-        return validateApiResponseSync(GraphResponseSchema, json, `Graph API response for ${org}`)
+        return validateApiResponseSync(
+          GraphResponseSchema,
+          json,
+          `Graph API response for ${org}`
+        )
       }),
   })
 )

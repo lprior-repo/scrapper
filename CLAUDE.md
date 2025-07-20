@@ -5,13 +5,16 @@
 This project **exclusively uses Bun** as the JavaScript runtime and package manager. There is **NO Node.js** anywhere in this stack.
 
 ### Runtime Environment
+
 - ✅ **Bun**: Primary JavaScript runtime and package manager
 - ❌ **Node.js**: Not used, not installed, not supported
 - ❌ **npm**: Not used, replaced with Bun
 - ❌ **yarn**: Not used, replaced with Bun
 - ❌ **pnpm**: Not used, replaced with Bun
+- X VITE: Not used, replaced with Bun
 
 ### Key Bun Features Used
+
 1. **Native Test Runner**: Using `bun test` instead of Jest
 2. **DOM Environment**: Using `happy-dom` for browser simulation
 3. **TypeScript Support**: Built-in TypeScript compilation
@@ -21,21 +24,23 @@ This project **exclusively uses Bun** as the JavaScript runtime and package mana
 ### Project Architecture
 
 #### Frontend (packages/webapp/)
+
 - **Runtime**: Bun
-- **Framework**: React 18
-- **Graph Library**: Cytoscape.js (migrated from vis-network)
+- **Framework**: React 19
+- **Graph Library**: Cytoscape.js
 - **Testing**: Bun native test runner + Playwright
 - **Build Tool**: Bun build
 - **Dev Server**: Bun with hot reload
 
 #### Backend
+
 - **Language**: Go (separate from JavaScript stack)
 - **Database**: Neo4j
 - **API**: REST endpoints
 
 ### Development Commands
 
-All commands use Bun exclusively:
+All commands use Bun exclusively for JavaScript Code
 
 ```bash
 # Development
@@ -65,17 +70,17 @@ bun run type-check         # TypeScript type checking
 ### Test Stack (Bun Native)
 
 #### Unit Tests
-- **Framework**: Bun native test runner
-- **DOM**: happy-dom (lighter than jsdom)
-- **Mocking**: Bun's built-in `mock()` function
-- **Location**: `packages/webapp/src/**/*.bun.test.{ts,tsx}`
+
+- Not allowed. We follow a strict trophy testing report.
 
 #### Integration Tests
+
 - **Framework**: Playwright
-- **Browsers**: Chrome, Firefox, Safari, Mobile
+- **Browsers**: Chrome
 - **Location**: `tests/playwright/*.spec.ts`
 
 #### Visual Regression
+
 - **Framework**: Playwright screenshots
 - **Comparison**: Automated pixel-perfect comparisons
 - **Threshold**: 0.3 tolerance for minor rendering differences
@@ -83,6 +88,7 @@ bun run type-check         # TypeScript type checking
 ### Configuration Files
 
 #### Bun Configuration (`bunfig.toml`)
+
 ```toml
 [test]
 preload = ["./src/test/setup.ts"]
@@ -94,6 +100,7 @@ exclude = ["src/index.tsx", "src/types.d.ts", "src/**/*.test.{ts,tsx}"]
 ```
 
 #### Playwright Configuration
+
 - Uses `bun run dev` for dev server
 - Supports multiple browsers and devices
 - Visual regression testing enabled
@@ -103,6 +110,7 @@ exclude = ["src/index.tsx", "src/types.d.ts", "src/**/*.test.{ts,tsx}"]
 This project was fully migrated from Node.js dependencies:
 
 #### Removed Node.js Dependencies
+
 - ❌ `jest` → ✅ `bun test`
 - ❌ `@testing-library/jest-dom` → ✅ `happy-dom`
 - ❌ `ts-jest` → ✅ Native Bun TypeScript
@@ -110,6 +118,7 @@ This project was fully migrated from Node.js dependencies:
 - ❌ `identity-obj-proxy` → ✅ Not needed with Bun
 
 #### Replaced with Bun-Native
+
 - ✅ `bun-types`: Bun TypeScript definitions
 - ✅ `happy-dom`: Lightweight DOM for testing
 - ✅ Native test runner with mocking
@@ -121,6 +130,7 @@ This project was fully migrated from Node.js dependencies:
 Successfully migrated from vis-network to cytoscape.js:
 
 #### Before (vis-network)
+
 ```typescript
 import { Network } from 'vis-network/standalone'
 import 'vis-network/styles/vis-network.css'
@@ -129,6 +139,7 @@ const network = new Network(container, data, options)
 ```
 
 #### After (cytoscape.js)
+
 ```typescript
 import cytoscape from 'cytoscape'
 
@@ -136,7 +147,7 @@ const cy = cytoscape({
   container,
   elements,
   style,
-  layout: { name: 'cose' }
+  layout: { name: 'cose' },
 })
 ```
 
@@ -151,6 +162,7 @@ const cy = cytoscape({
 ### Compatibility Notes
 
 #### What Works with Bun
+
 - ✅ React and React DOM
 - ✅ TypeScript (native support)
 - ✅ ESLint and Prettier
@@ -160,6 +172,7 @@ const cy = cytoscape({
 - ✅ Modern ES modules
 
 #### What Doesn't Work
+
 - ❌ Node.js specific APIs (not needed)
 - ❌ Jest and Jest ecosystem
 - ❌ CommonJS modules (use ESM instead)
@@ -168,16 +181,19 @@ const cy = cytoscape({
 ### Development Environment Setup
 
 1. **Install Bun**:
+
    ```bash
    curl -fsSL https://bun.sh/install | bash
    ```
 
 2. **Install Dependencies**:
+
    ```bash
    bun install
    ```
 
 3. **Start Development**:
+
    ```bash
    bun run dev
    ```
@@ -208,25 +224,18 @@ Ensure CI environments use Bun:
 ### Troubleshooting
 
 #### Common Issues
+
 1. **"npm not found"**: Good! Use `bun` instead
-2. **"jest command not found"**: Use `bun test` instead
+2. **"jest command not found"**: Use `bun test` insteadIf
 3. **Module resolution errors**: Ensure using ESM imports
 4. **TypeScript errors**: Bun has strict TypeScript checking
 
 #### Solutions
+
 - Always use `bun` commands
 - Update imports to use ESM syntax
 - Check `bunfig.toml` for configuration
 - Use `bun run type-check` for TypeScript validation
-
-### Project Goals Achieved
-
-✅ **Full Bun Migration**: No Node.js dependencies remain  
-✅ **Modern Graph Library**: Cytoscape.js provides better performance  
-✅ **Comprehensive Testing**: Unit, integration, and visual tests  
-✅ **Type Safety**: Full TypeScript coverage with Effect-TS  
-✅ **Developer Experience**: Fast dev server, instant tests  
-✅ **Production Ready**: Optimized builds with Bun bundler  
 
 ---
 

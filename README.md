@@ -66,11 +66,13 @@ docker exec overseer-app ./overseer scan microsoft
 ### Local Development
 
 1. **Start only the database services**:
+
 ```bash
 docker-compose -f docker-compose.dev.yml up -d
 ```
 
 2. **Run the backend locally**:
+
 ```bash
 export GITHUB_TOKEN="your_token"
 export NEO4J_URI="bolt://localhost:7687"
@@ -81,6 +83,7 @@ go run . api
 ```
 
 3. **Run the frontend locally**:
+
 ```bash
 cd ui
 bun install
@@ -89,13 +92,13 @@ bun run dev
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `GITHUB_TOKEN` | GitHub Personal Access Token | Required |
-| `NEO4J_URI` | Neo4j database URI | `bolt://localhost:7687` |
-| `NEO4J_USERNAME` | Neo4j username | `neo4j` |
-| `NEO4J_PASSWORD` | Neo4j password | `password` |
-| `ENVIRONMENT` | Environment (development/production) | `development` |
+| Variable         | Description                          | Default                 |
+| ---------------- | ------------------------------------ | ----------------------- |
+| `GITHUB_TOKEN`   | GitHub Personal Access Token         | Required                |
+| `NEO4J_URI`      | Neo4j database URI                   | `bolt://localhost:7687` |
+| `NEO4J_USERNAME` | Neo4j username                       | `neo4j`                 |
+| `NEO4J_PASSWORD` | Neo4j password                       | `password`              |
+| `ENVIRONMENT`    | Environment (development/production) | `development`           |
 
 ## API Endpoints
 
@@ -212,6 +215,7 @@ MIT License - see LICENSE file for details
 ## Support
 
 For issues and questions:
+
 - Create an issue on GitHub
 - Check existing documentation
 - Review the API documentation at `/api/docs`

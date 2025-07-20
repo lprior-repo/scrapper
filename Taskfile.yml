@@ -15,7 +15,7 @@ tasks:
       - bunx playwright install
       - echo "🔨 Building application..."
       - go build -o bin/overseer .
-      - cd packages/webapp && bun run build
+      - bun run build:webapp
       - echo "✅ Complete setup finished - ready for development!"
 
   test:
@@ -37,7 +37,7 @@ tasks:
       - echo "🔍 Running API edge case tests..."
       - task: test-api-edge-cases
       - echo "🎭 Running Playwright E2E/Integration tests..."
-      - task: playwright
+      - task: test:e2e
       - task: stop-api-for-testing
       - task: cleanup-test-database
       - echo "✅ All tests completed successfully!"
@@ -56,13 +56,33 @@ tasks:
       - echo "Starting services concurrently... Press Ctrl+C to stop all services."
       - ./start-dev.sh
 
+  dev:webapp:
+    desc: Start only the webapp development server
+    cmds:
+      - echo "🌐 Starting webapp development server..."
+      - bun run dev:webapp
+
+  dev:api:
+    desc: Start only the API server
+    cmds:
+      - echo "🔧 Starting API server..."
+      - task: ensure-neo4j-running
+      - go run . api
+
   build:
     desc: Build all components
     cmds:
       - echo "🔨 Building all components..."
       - go build -o bin/overseer .
-      - bun run build
+      - bun run build:webapp
       - echo "✅ Build completed!"
+
+  build:webapp:
+    desc: Build only the webapp
+    cmds:
+      - echo "🔨 Building webapp..."
+      - bun run build:webapp
+      - echo "✅ Webapp build completed!"
 
   clean:
     desc: Clean up development environment
@@ -79,7 +99,7 @@ tasks:
     desc: Run linting across entire codebase (TypeScript and Go)
     cmds:
       - echo "🔍 Running TypeScript/JavaScript linting..."
-      - bun run lint
+      - bunx eslint packages/webapp/src packages/shared/src --ext .ts,.tsx
       - echo "🔍 Running Go linting..."
       - golangci-lint run ./... || echo "⚠️  golangci-lint not available, skipping Go linting"
       - echo "✅ Linting completed!"
@@ -88,7 +108,7 @@ tasks:
     desc: Run linting with auto-fix across entire codebase
     cmds:
       - echo "🔧 Running TypeScript/JavaScript linting with auto-fix..."
-      - bun run lint:fix
+      - bunx eslint packages/webapp/src packages/shared/src --ext .ts,.tsx --fix
       - echo "🔧 Running Go formatting..."
       - go fmt ./...
       - echo "🔧 Running Go imports organization..."
@@ -99,16 +119,49 @@ tasks:
     desc: Run TypeScript type checking
     cmds:
       - echo "🔍 Running TypeScript type checking..."
-      - bun run type-check
+      - bunx tsc --noEmit
       - echo "✅ Type checking completed!"
 
   format:
     desc: Format all code (TypeScript, Go, JSON, YAML, etc.)
     cmds:
       - echo "🎨 Formatting all code..."
-      - bun run format
+      - bunx prettier --write .
       - go fmt ./...
       - echo "✅ Code formatting completed!"
+
+  test:e2e:
+    desc: Run Playwright E2E tests
+    cmds:
+      - echo "🎭 Running Playwright E2E tests..."
+      - bunx playwright test --config=packages/webapp/playwright.config.ts
+      - echo "✅ E2E tests completed!"
+
+  test:e2e:ui:
+    desc: Run Playwright E2E tests with UI
+    cmds:
+      - echo "🎭 Running Playwright E2E tests with UI..."
+      - bunx playwright test --config=packages/webapp/playwright.config.ts --ui
+
+  test:e2e:debug:
+    desc: Debug Playwright E2E tests
+    cmds:
+      - echo "🐛 Running Playwright E2E tests in debug mode..."
+      - bunx playwright test --config=packages/webapp/playwright.config.ts --debug
+
+  test:visual:
+    desc: Run visual regression tests
+    cmds:
+      - echo "📸 Running visual regression tests..."
+      - bunx playwright test --config=packages/webapp/playwright.config.ts --grep=\"Visual Regression\"
+      - echo "✅ Visual regression tests completed!"
+
+  test:integration:
+    desc: Run integration tests
+    cmds:
+      - echo "🔗 Running integration tests..."
+      - bunx playwright test --config=packages/webapp/playwright.config.ts --grep=\"Integration\"
+      - echo "✅ Integration tests completed!"
 
   api-start:
     desc: Start API server and infrastructure for testing without running hurl tests
@@ -173,7 +226,7 @@ tasks:
         # Start API server in background
         go run . api > api_test.log 2>&1 &
         echo $! > api_test.pid
-        
+
         # Wait for server to be ready
         echo "⏳ Waiting for API server to be ready..."
         timeout=30
@@ -234,12 +287,11 @@ tasks:
       - hurl --test --variables-file tests/config/global.hurl tests/edge-cases/boundary-value-tests.hurl
       - hurl --test --variables-file tests/config/global.hurl tests/edge-cases/error-scenario-tests.hurl
 
-
   playwright:
     desc: Run Playwright E2E tests with full setup and teardown
     cmds:
       - echo "🎭 Running Playwright E2E tests..."
-      - bun run test:e2e
+      - task: test:e2e
       - task: stop-api-for-testing
       - task: cleanup-test-database
       - echo "✅ Playwright tests completed!"

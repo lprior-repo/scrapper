@@ -1,10 +1,12 @@
-import React from 'react';
+import React from 'react'
 
 interface IGraphErrorDisplayProps {
-  readonly error: unknown;
+  readonly error: unknown
 }
 
-export const GraphErrorDisplay: React.FC<IGraphErrorDisplayProps> = ({ error }) => (
+export const GraphErrorDisplay: React.FC<IGraphErrorDisplayProps> = ({
+  error,
+}) => (
   <div
     style={{
       display: 'flex',
@@ -21,4 +23,4 @@ export const GraphErrorDisplay: React.FC<IGraphErrorDisplayProps> = ({ error }) 
       <p>{error instanceof Error ? error.message : String(error)}</p>
     </div>
   </div>
-);
+)

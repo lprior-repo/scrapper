@@ -65,11 +65,9 @@ const LoadButton: React.FC<{
   readonly organization: string
 }> = ({ onClick, organization }) => {
   const [isHovered, setIsHovered] = useState(false)
-  
-  const getBackgroundColor = () => {
-    if (!organization) return '#21262d'
-    return isHovered ? '#2ea043' : '#238636'
-  }
+
+  const getBackgroundColor = () =>
+    !organization ? '#21262d' : isHovered ? '#2ea043' : '#238636'
 
   return (
     <button
@@ -149,12 +147,12 @@ export const App: React.FC = () => {
   const [useTopics, setUseTopics] = useState(false)
   const [displayedUseTopics, setDisplayedUseTopics] = useState(false)
 
-  const handleScan = () => {
-    if (organization) {
-      setDisplayedOrg(organization)
-      setDisplayedUseTopics(useTopics)
-    }
-  }
+  const handleScan = () =>
+    organization
+      ? (setDisplayedOrg(organization),
+        setDisplayedUseTopics(useTopics),
+        undefined)
+      : undefined
 
   return (
     <div style={{ width: '100%', height: '100vh', position: 'relative' }}>
