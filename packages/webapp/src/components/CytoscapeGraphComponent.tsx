@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react'
-import cytoscape, { type Core, type EventObject } from 'cytoscape'
+import cytoscape, { type Core, type EventObject, type ElementDefinition } from 'cytoscape'
 
 import { createCytoscapeElements } from './graph-elements'
 import { createCytoscapeStyles } from './graph-styles'
@@ -91,8 +91,9 @@ const handleNodeMouseover = (event: EventObject): void => {
  */
 const handleNodeMouseout = (event: EventObject): void => {
   const node = event.target
-  !node.selected() &&
-    (node.style(nodeDefaultStyles), node.removestyle('border-color'))
+  node && !node.selected() ? 
+    (node.style(nodeDefaultStyles), node.removestyle('border-color')) : 
+    void 0
 }
 
 /**
@@ -107,7 +108,7 @@ const handleEdgeMouseover = (event: EventObject): void => {
  */
 const handleEdgeMouseout = (event: EventObject): void => {
   const edge = event.target
-  !edge.selected() && edge.style(edgeDefaultStyles)
+  edge && !edge.selected() ? edge.style(edgeDefaultStyles) : void 0
 }
 
 /**
@@ -115,7 +116,9 @@ const handleEdgeMouseout = (event: EventObject): void => {
  */
 const handleElementTap = (event: EventObject): void => {
   const element = event.target
-  element.selected() ? element.unselect() : element.select()
+  element ? 
+    (element.selected() ? element.unselect() : element.select()) : 
+    void 0
 }
 
 /**
@@ -124,7 +127,7 @@ const handleElementTap = (event: EventObject): void => {
 const handleBackgroundTap =
   (cy: Core) =>
   (event: EventObject): void => {
-    event.target === cy && cy.elements().unselect()
+    event.target === cy && cy ? cy.elements().unselect() : void 0
   }
 
 /**
@@ -265,7 +268,15 @@ const renderCanvas = (
  * Destroys existing cytoscape instance
  */
 const destroyInstance = (cyRef: React.MutableRefObject<Core | null>): void => {
-  cyRef.current?.destroy()
+  cyRef.current ? 
+    (() => {
+      try {
+        cyRef.current?.destroy()
+      } catch (error) {
+        console.warn('Error destroying cytoscape instance:', error)
+      }
+    })() : 
+    void 0
 }
 
 /**

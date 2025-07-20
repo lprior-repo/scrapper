@@ -65,10 +65,7 @@ export const ApiClientLive = Layer.succeed(
           })
         )
 
-        response.ok ||
-          Effect.runSync(
-            Effect.fail(new Error(`HTTP error! status: ${response.status}`))
-          )
+        response.ok ? void 0 : yield* Effect.fail(new Error(`HTTP error! status: ${response.status}`))
 
         const json = yield* Effect.tryPromise(() => response.json())
 

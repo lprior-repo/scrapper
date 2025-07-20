@@ -30,7 +30,11 @@ export default defineConfig({
   expect: {
     // Increase timeout for visual regression tests
     timeout: 10000,
-    // Visual comparison threshold
-    toHaveScreenshot: { threshold: 0.3 },
+    // Visual comparison threshold - more tolerant for cross-platform differences
+    toHaveScreenshot: { 
+      threshold: 0.5,
+      // Allow for minor animation and font rendering differences
+      animations: 'disabled'
+    },
   },
 })

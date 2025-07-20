@@ -99,13 +99,21 @@ export const GraphNodeTypeSchema = z.enum([
   'repository',
   'team',
   'user',
+  'topic',
 ])
 
 /**
  * Graph edge type enum
  * Types of relationships between nodes
  */
-export const GraphEdgeTypeSchema = z.enum(['owns', 'member_of', 'codeowner'])
+export const GraphEdgeTypeSchema = z.enum([
+  'owns',
+  'member_of', 
+  'codeowner',
+  'maintained_by',
+  'has_topic',
+  'has',
+])
 
 /**
  * Graph node schema

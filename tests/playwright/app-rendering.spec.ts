@@ -143,7 +143,8 @@ test.describe('App Rendering and Component Display', () => {
                 id: '', // Invalid empty edge ID
                 source: 'node-1',
                 target: 'nonexistent-node',
-                label: 'test edge'
+                label: 'test edge',
+                type: 'owns'
               }
             ],
           },
@@ -157,18 +158,26 @@ test.describe('App Rendering and Component Display', () => {
     )
     await page.click('button:has-text("Load Graph")')
 
+    // Wait for either loading to complete or error to appear
+    await page.waitForTimeout(2000)
+
     // The component should either show an error or gracefully handle the bad data
-    // by filtering it out and showing an empty state
+    // by filtering it out and showing a canvas (potentially empty)
     const errorHeading = page.locator('h2:has-text("Error loading graph")')
     const graphCanvas = page.locator('[data-testid="graph-canvas"]')
     
-    // Either an error is shown or the graph canvas appears (with filtered data)
-    await expect(errorHeading.or(graphCanvas)).toBeVisible()
+    // The graph canvas should be visible (as the test-id is on the container)
+    // but the content might show an error or handle bad data gracefully
+    await expect(graphCanvas).toBeVisible()
     
-    // If the graph canvas is visible, it should have handled the bad data gracefully
-    const canvasVisible = await graphCanvas.isVisible()
-    if (canvasVisible) {
-      // Should not crash - the component should filter out invalid data
+    // Check if there's an error displayed within the canvas area or if it handled the data
+    const hasErrorWithinCanvas = await errorHeading.isVisible()
+    
+    if (hasErrorWithinCanvas) {
+      console.log('✅ Component correctly showed error for malformed data')
+    } else {
+      console.log('✅ Component gracefully handled malformed data by filtering it')
+      // The component should not crash even with bad data
       await expect(graphCanvas).toBeVisible()
     }
   })

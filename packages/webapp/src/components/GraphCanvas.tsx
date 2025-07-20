@@ -22,82 +22,87 @@ type GraphState =
       }
     }
 
-const createApiUrl = (organization: string, useTopics: boolean): string =>
+const createApiUrl = (
+  organization: string,
+  useTopics: boolean
+): Effect.Effect<string, Error> =>
   !organization ||
   typeof organization !== 'string' ||
   organization.trim().length === 0
-    ? Effect.runSync(
-        Effect.fail(
-          new Error(
-            'Organization parameter is required and must be a non-empty string'
-          )
+    ? Effect.fail(
+        new Error(
+          'Organization parameter is required and must be a non-empty string'
         )
       )
-    : (() => {
-        const cleanOrg = encodeURIComponent(organization.trim())
-        return `http://localhost:8081/api/graph/${cleanOrg}${useTopics ? '?useTopics=true' : ''}`
-      })()
+    : Effect.succeed(
+        (() => {
+          const cleanOrg = encodeURIComponent(organization.trim())
+          return `http://localhost:8081/api/graph/${cleanOrg}${useTopics ? '?useTopics=true' : ''}`
+        })()
+      )
 
 const validateGraphData = (
   data: unknown
-): {
-  readonly nodes: readonly GraphNode[]
-  readonly edges: readonly GraphEdge[]
-} =>
+): Effect.Effect<
+  {
+    readonly nodes: readonly GraphNode[]
+    readonly edges: readonly GraphEdge[]
+  },
+  Error
+> =>
   !data || typeof data !== 'object'
-    ? Effect.runSync(
-        Effect.fail(new Error('Invalid graph data: expected object'))
+    ? Effect.fail(new Error('Invalid graph data: expected object'))
+    : Effect.succeed(
+        (() => {
+          const graphData = data as {
+            readonly nodes?: unknown
+            readonly edges?: unknown
+          }
+          const nodes = Array.isArray(graphData.nodes) ? graphData.nodes : []
+          const edges = Array.isArray(graphData.edges) ? graphData.edges : []
+          console.warn(
+            `Received ${nodes.length} nodes and ${edges.length} edges from API`
+          )
+          return {
+            nodes: nodes as readonly GraphNode[],
+            edges: edges as readonly GraphEdge[],
+          }
+        })()
       )
-    : (() => {
-        const graphData = data as {
-          readonly nodes?: unknown
-          readonly edges?: unknown
-        }
-        const nodes = Array.isArray(graphData.nodes) ? graphData.nodes : []
-        const edges = Array.isArray(graphData.edges) ? graphData.edges : []
-        console.warn(
-          `Received ${nodes.length} nodes and ${edges.length} edges from API`
-        )
-        return {
-          nodes: nodes as readonly GraphNode[],
-          edges: edges as readonly GraphEdge[],
-        }
-      })()
 
 const fetchGraphData = (url: string) =>
   Effect.gen(function* () {
-    const response = yield* Effect.tryPromise(() =>
-      fetch(url).then((res) =>
-        res.ok
-          ? res.json()
-          : Effect.runSync(
-              Effect.fail(new Error(`HTTP error! status: ${res.status}`))
-            )
-      )
-    )
+    const response = yield* Effect.tryPromise(() => fetch(url))
 
-    return !response || typeof response !== 'object'
-      ? Effect.runSync(Effect.fail(new Error('Invalid API response format')))
-      : validateGraphData(response.data)
+    response.ok ? void 0 : yield* Effect.fail(new Error(`HTTP error! status: ${response.status}`))
+
+    const json = yield* Effect.tryPromise(() => response.json())
+
+    (!json || typeof json !== 'object') ? yield* Effect.fail(new Error('Invalid API response format')) : void 0
+
+    return yield* validateGraphData(json.data)
   })
 
-const renderGraphState = (state: GraphState): React.ReactElement =>
-  state.type === 'loading' ? (
-    <GraphLoadingSpinner />
-  ) : state.type === 'error' ? (
-    <GraphErrorDisplay error={state.error} />
-  ) : state.type === 'success' ? (
-    (() => {
-      const { nodes, edges } = state.data
-      return !nodes && !edges ? (
-        <GraphErrorDisplay error={new Error('No graph data received')} />
-      ) : (
-        <CytoscapeGraphComponent nodes={nodes} edges={edges} />
-      )
-    })()
-  ) : (
-    <GraphErrorDisplay error={new Error('Unknown graph state')} />
-  )
+const renderGraphState = (state: GraphState): React.ReactElement => (
+  <div data-testid="graph-canvas" style={{ width: '100%', height: '100vh' }}>
+    {state.type === 'loading' ? (
+      <GraphLoadingSpinner />
+    ) : state.type === 'error' ? (
+      <GraphErrorDisplay error={state.error} />
+    ) : state.type === 'success' ? (
+      (() => {
+        const { nodes, edges } = state.data
+        return !nodes && !edges ? (
+          <GraphErrorDisplay error={new Error('No graph data received')} />
+        ) : (
+          <CytoscapeGraphComponent nodes={nodes} edges={edges} />
+        )
+      })()
+    ) : (
+      <GraphErrorDisplay error={new Error('Unknown graph state')} />
+    )}
+  </div>
+)
 
 export const GraphCanvas: React.FC<IGraphCanvasProps> = ({
   organization,
@@ -106,32 +111,34 @@ export const GraphCanvas: React.FC<IGraphCanvasProps> = ({
   const [state, setState] = useState<GraphState>({ type: 'loading' })
 
   useEffect(() => {
-    return !organization ||
+    if (
+      !organization ||
       typeof organization !== 'string' ||
       organization.trim().length === 0
-      ? setState({
-          type: 'error',
-          error: new Error('Organization name is required'),
-        })
-      : (() => {
-          setState({ type: 'loading' })
-          try {
-            const url = createApiUrl(organization, useTopics)
-            const loadData = fetchGraphData(url)
-            Effect.runPromise(loadData)
-              .then((data) => {
-                console.warn('Graph data loaded successfully:', data)
-                setState({ type: 'success', data })
-              })
-              .catch((error) => {
-                console.error('Failed to load graph data:', error)
-                setState({ type: 'error', error })
-              })
-          } catch (error) {
-            console.error('Error creating API request:', error)
-            setState({ type: 'error', error })
-          }
-        })()
+    ) {
+      setState({
+        type: 'error',
+        error: new Error('Organization name is required'),
+      })
+      return
+    }
+
+    setState({ type: 'loading' })
+
+    const pipeline = Effect.gen(function* () {
+      const url = yield* createApiUrl(organization, useTopics)
+      return yield* fetchGraphData(url)
+    })
+
+    Effect.runPromise(pipeline)
+      .then((data) => {
+        console.warn('Graph data loaded successfully:', data)
+        setState({ type: 'success', data })
+      })
+      .catch((error) => {
+        console.error('Failed to load graph data:', error)
+        setState({ type: 'error', error })
+      })
   }, [organization, useTopics])
 
   return renderGraphState(state)
