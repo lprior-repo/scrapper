@@ -15,7 +15,7 @@ tasks:
       - bunx playwright install
       - echo "🔨 Building application..."
       - go build -o bin/overseer .
-      - bun run build:webapp
+      - bun run build
       - echo "✅ Complete setup finished - ready for development!"
 
   test:
@@ -43,24 +43,35 @@ tasks:
       - echo "✅ All tests completed successfully!"
 
   dev:
-    desc: Start development environment at maximum speed
+    desc: Start comprehensive observability stack with full development environment
     cmds:
-      - echo "🚀 Starting development stack..."
-      - task: ensure-neo4j-running
+      - echo "🚀 Starting comprehensive observability stack..."
+      - task: ensure-observability-ready
       - task: setup-dependencies
-      - echo "🚀 Starting services..."
-      - echo "  📊 Neo4j{{":"}} http{{":"}}//localhost{{":"}}7474"
-      - echo "  🔧 API{{":"}} http{{":"}}//localhost{{":"}}8081"
-      - echo "  🌐 Frontend{{":"}} http{{":"}}//localhost{{":"}}3000"
+      - echo "📊 Starting observability services..."
+      - 'echo "  🔍 Jaeger UI: http://localhost:16686"'
+      - 'echo "  📈 Metrics: http://localhost:2121/metrics"'
+      - 'echo "  📊 Neo4j: http://localhost:7474"'
+      - 'echo "  🔧 API: http://localhost:8081"'
+      - 'echo "  🌐 Frontend: http://localhost:3000"'
       - echo ""
-      - echo "Starting services concurrently... Press Ctrl+C to stop all services."
+      - echo "🚀 All services starting with comprehensive logging and tracing..."
+      - echo "📋 Available observability features:"
+      - echo "   • Real-time distributed tracing"
+      - echo "   • Structured logging with correlation IDs"
+      - echo "   • Performance metrics and monitoring"
+      - echo "   • Error tracking and analysis"
+      - echo "   • API rate limit monitoring"
+      - echo "   • Database query performance tracking"
+      - echo ""
+      - echo "Press Ctrl+C to stop all services gracefully."
       - ./start-dev.sh
 
   dev:webapp:
     desc: Start only the webapp development server
     cmds:
       - echo "🌐 Starting webapp development server..."
-      - bun run dev:webapp
+      - bun run dev
 
   dev:api:
     desc: Start only the API server
@@ -74,21 +85,21 @@ tasks:
     cmds:
       - echo "🔨 Building all components..."
       - go build -o bin/overseer .
-      - bun run build:webapp
+      - bun run build
       - echo "✅ Build completed!"
 
   build:webapp:
     desc: Build only the webapp
     cmds:
       - echo "🔨 Building webapp..."
-      - bun run build:webapp
+      - bun run build
       - echo "✅ Webapp build completed!"
 
   clean:
     desc: Clean up development environment
     cmds:
       - echo "🧹 Cleaning up..."
-      - go run . --cleanup || true
+      - go run . cleanup 2>/dev/null || true
       - docker compose down
       - rm -f coverage.out coverage.html gosec-report.json
       - rm -rf bin/
@@ -153,14 +164,14 @@ tasks:
     desc: Run visual regression tests
     cmds:
       - echo "📸 Running visual regression tests..."
-      - bunx playwright test --config=packages/webapp/playwright.config.ts --grep=\"Visual Regression\"
+      - bunx playwright test --config=packages/webapp/playwright.config.ts --grep="Visual Regression"
       - echo "✅ Visual regression tests completed!"
 
   test:integration:
     desc: Run integration tests
     cmds:
       - echo "🔗 Running integration tests..."
-      - bunx playwright test --config=packages/webapp/playwright.config.ts --grep=\"Integration\"
+      - bunx playwright test --config=packages/webapp/playwright.config.ts --grep="Integration"
       - echo "✅ Integration tests completed!"
 
   api-start:
@@ -173,7 +184,57 @@ tasks:
       - task: start-api-for-testing
       - echo "✅ API server and infrastructure ready for testing!"
 
+  # Observability Commands
+  dev:observability:
+    desc: Start only observability services (Jaeger, metrics)
+    cmds:
+      - echo "🔍 Starting observability services..."
+      - docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d jaeger
+      - task: wait-for-jaeger
+      - echo "✅ Observability services ready!"
+      - 'echo "  🔍 Jaeger UI: http://localhost:16686"'
+      - 'echo "  📊 Traces: http://localhost:16686/search"'
+
+  dev:logs:
+    desc: View aggregated development logs in real-time
+    cmds:
+      - echo "📋 Viewing real-time aggregated logs..."
+      - 'echo "📁 Log files: logs/aggregated.log, logs/api.log, logs/frontend.log"'
+      - tail -f logs/aggregated.log || echo "⚠️  No log files found. Start development environment with 'task dev' first."
+
+  dev:metrics:
+    desc: Display current system metrics and performance data
+    cmds:
+      - echo "📈 Current system metrics"
+      - echo "API Health - $(curl -s http://localhost:8081/api/health | jq -r '.status // \"unavailable\"' || echo \"unavailable\")"
+      - echo "Jaeger Status - $(curl -s http://localhost:16686 >/dev/null 2>&1 && echo \"running\" || echo \"unavailable\")"
+      - echo "Neo4j Status - $(docker compose exec neo4j cypher-shell -u neo4j -p password \"RETURN 1\" >/dev/null 2>&1 && echo \"running\" || echo \"unavailable\")"
+      - echo "Frontend Status - $(curl -s http://localhost:3000 >/dev/null 2>&1 && echo \"running\" || echo \"unavailable\")"
+
+  dev:trace:
+    desc: Open Jaeger UI for distributed tracing analysis
+    cmds:
+      - echo "🔍 Opening Jaeger tracing dashboard..."
+      - 'echo "📊 Jaeger UI: http://localhost:16686"'
+      - 'echo "🔍 Service traces: http://localhost:16686/search"'
+      - 'echo "📈 Service dependencies: http://localhost:16686/dependencies"'
+
   # Internal/Support Tasks
+  ensure-observability-ready:
+    desc: Ensure all observability services are running and ready
+    cmds:
+      - task: ensure-neo4j-running
+      - echo "🔍 Ensuring Jaeger is running..."
+      - |
+        if ! curl -s http://localhost:16686 >/dev/null 2>&1; then
+          echo "Starting Jaeger..."
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d jaeger
+          task wait-for-jaeger
+        else
+          echo "Jaeger already running"
+        fi
+      - echo "✅ All observability services ready!"
+
   ensure-neo4j-running:
     desc: Ensure Neo4j is running (don't restart if already up)
     cmds:
@@ -203,6 +264,24 @@ tasks:
           count=$((count + 2))
         done
         echo "Neo4j is ready!"
+
+  wait-for-jaeger:
+    desc: Wait for Jaeger to be ready
+    cmds:
+      - |
+        echo "Waiting for Jaeger to be ready..."
+        timeout=30
+        count=0
+        until curl -s http://localhost:16686 >/dev/null 2>&1; do
+          if [ $count -ge $timeout ]; then
+            echo "Jaeger failed to start within ${timeout} seconds"
+            exit 1
+          fi
+          echo "Jaeger is not ready yet. Waiting 2 seconds... (${count}/${timeout})"
+          sleep 2
+          count=$((count + 2))
+        done
+        echo "Jaeger is ready!"
 
   setup-dependencies:
     desc: Install dependencies only when needed
