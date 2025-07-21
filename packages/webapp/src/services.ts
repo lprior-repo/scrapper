@@ -56,23 +56,27 @@ export const ApiClientLive = Layer.succeed(
         const baseUrl = 'http://localhost:8081' // Your Go backend URL
         const url = `${baseUrl}/api/graph/${org}${useTopics ? '?useTopics=true' : ''}`
 
-        const response = yield* Effect.tryPromise(() =>
-          fetch(url, {
+        const httpResponse = yield* Effect.tryPromise({
+          try: () => fetch(url, {
             method: 'GET',
             headers: {
               Accept: 'application/json',
             },
-          })
-        )
+          }),
+          catch: (error) => new Error(`Network error: ${error instanceof Error ? error.message : String(error)}`)
+        })
 
-        response.ok ? void 0 : yield* Effect.fail(new Error(`HTTP error! status: ${response.status}`))
+        httpResponse.ok ? void 0 : yield* Effect.fail(new Error(`HTTP error! status: ${httpResponse.status}`))
 
-        const json = yield* Effect.tryPromise(() => response.json())
+        const apiJsonData = yield* Effect.tryPromise({
+          try: () => httpResponse.json(),
+          catch: (error) => new Error(`JSON parsing error: ${error instanceof Error ? error.message : String(error)}`)
+        })
 
         // Use the shared schema validation
         return validateApiResponseSync(
           GraphResponseSchema,
-          json,
+          apiJsonData,
           `Graph API response for ${org}`
         )
       }),

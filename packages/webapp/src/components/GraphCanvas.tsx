@@ -72,15 +72,25 @@ const validateGraphData = (
 
 const fetchGraphData = (url: string) =>
   Effect.gen(function* () {
-    const response = yield* Effect.tryPromise(() => fetch(url))
+    const fetchResponse = yield* Effect.tryPromise({
+      try: () => fetch(url),
+      catch: (error) => new Error(`Network error: ${error instanceof Error ? error.message : String(error)}`)
+    })
 
-    response.ok ? void 0 : yield* Effect.fail(new Error(`HTTP error! status: ${response.status}`))
+    if (!fetchResponse.ok) {
+      yield* Effect.fail(new Error(`HTTP error! status: ${fetchResponse.status}`))
+    }
 
-    const json = yield* Effect.tryPromise(() => response.json())
+    const graphApiJson = yield* Effect.tryPromise({
+      try: () => fetchResponse.json(),
+      catch: (error) => new Error(`JSON parsing error: ${error instanceof Error ? error.message : String(error)}`)
+    })
 
-    (!json || typeof json !== 'object') ? yield* Effect.fail(new Error('Invalid API response format')) : void 0
+    if (!graphApiJson || typeof graphApiJson !== 'object') {
+      yield* Effect.fail(new Error('Invalid API response format'))
+    }
 
-    return yield* validateGraphData(json.data)
+    return yield* validateGraphData(graphApiJson.data)
   })
 
 const renderGraphState = (state: GraphState): React.ReactElement => (
@@ -131,9 +141,9 @@ export const GraphCanvas: React.FC<IGraphCanvasProps> = ({
     })
 
     Effect.runPromise(pipeline)
-      .then((data) => {
-        console.warn('Graph data loaded successfully:', data)
-        setState({ type: 'success', data })
+      .then((graphResult) => {
+        console.warn('Graph data loaded successfully:', graphResult)
+        setState({ type: 'success', data: graphResult })
       })
       .catch((error) => {
         console.error('Failed to load graph data:', error)

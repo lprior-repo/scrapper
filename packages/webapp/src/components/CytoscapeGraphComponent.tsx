@@ -244,7 +244,7 @@ const canvasStyle = {
  * Renders error display component
  */
 const renderErrorDisplay = (error: CytoscapeError): React.ReactElement => (
-  <div data-testid="graph-error" style={errorContainerStyle}>
+  <div data-testid="cytoscape-error" style={errorContainerStyle}>
     <div style={errorContentStyle}>
       <h3 style={errorTitleStyle}>Graph Rendering Error</h3>
       <p style={errorMessageStyle}>{error.message}</p>
@@ -261,7 +261,7 @@ const renderErrorDisplay = (error: CytoscapeError): React.ReactElement => (
 const renderCanvas = (
   containerRef: React.RefObject<HTMLDivElement>
 ): React.ReactElement => (
-  <div ref={containerRef} data-testid="graph-canvas" style={canvasStyle} />
+  <div ref={containerRef} data-testid="cytoscape-container" style={canvasStyle} />
 )
 
 /**
