@@ -22,7 +22,7 @@ test.describe('Key User Flows', () => {
     // Step 3: Scan the organization first
     console.log('Step 3: Scanning organization...')
     const scanResponse = await page.request.post(
-      'http://localhost:8081/api/scan/github?useTopics=true&max_repos=10',
+      'http://localhost:8081/api/scan/github?useTopics=true&max_repos=100',
       {
         timeout: 60000,
       }
@@ -39,10 +39,10 @@ test.describe('Key User Flows', () => {
     await page.click('button:has-text("Load Graph")')
 
     // Wait for loading state
-    await expect(page.locator('text=Loading graph data...')).toBeVisible()
+    await expect(page.locator('text=Loading graph data...')).toBeVisible({ timeout: 30000 })
 
     // Wait for graph to load
-    const graphCanvas = page.locator('[data-testid="graph-canvas"]')
+    const graphCanvas = page.locator('[data-testid="graph-canvas"]').first()
     await expect(graphCanvas).toBeVisible({ timeout: 30000 })
 
     // Verify graph is rendered with cytoscape
@@ -114,7 +114,9 @@ test.describe('Key User Flows', () => {
     console.log('Loading first organization: golang')
     await page.fill('input[placeholder="Enter organization name"]', 'golang')
     await page.click('button:has-text("Load Graph")')
-    await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+    await expect(
+      page.locator('[data-testid="graph-canvas"]').first()
+    ).toBeVisible()
 
     // Verify golang graph is loaded
     try {
@@ -124,11 +126,15 @@ test.describe('Key User Flows', () => {
       )
       expect(graphResponse1.status()).toBe(200)
     } catch (error) {
-      console.log('Graph response for golang not captured, checking canvas visibility instead')
-      await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+      console.log(
+        'Graph response for golang not captured, checking canvas visibility instead'
+      )
+      await expect(
+        page.locator('[data-testid="graph-canvas"]').first()
+      ).toBeVisible()
     }
 
-    // Switch to second organization  
+    // Switch to second organization
     console.log('Switching to second organization: apache')
     await page.fill('input[placeholder="Enter organization name"]', 'apache')
     await page.click('button:has-text("Load Graph")')
@@ -140,7 +146,9 @@ test.describe('Key User Flows', () => {
     expect(graphResponse2.status()).toBe(200)
 
     // Canvas should still be visible
-    await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+    await expect(
+      page.locator('[data-testid="graph-canvas"]').first()
+    ).toBeVisible()
 
     console.log('✅ Organization switching flow successful!')
   })
@@ -199,7 +207,9 @@ test.describe('Key User Flows', () => {
     await page.fill('input[placeholder="Enter organization name"]', 'test-org')
     await page.click('button:has-text("Load Graph")')
 
-    await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+    await expect(
+      page.locator('[data-testid="graph-canvas"]').first()
+    ).toBeVisible()
 
     // Verify teams request
     try {
@@ -211,8 +221,12 @@ test.describe('Key User Flows', () => {
       )
       expect(teamsResponse.status()).toBe(200)
     } catch (error) {
-      console.log('Teams response not captured, checking canvas visibility instead')
-      await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+      console.log(
+        'Teams response not captured, checking canvas visibility instead'
+      )
+      await expect(
+        page.locator('[data-testid="graph-canvas"]').first()
+      ).toBeVisible()
     }
 
     // Toggle to topics view
@@ -228,8 +242,12 @@ test.describe('Key User Flows', () => {
       )
       expect(topicsResponse.status()).toBe(200)
     } catch (error) {
-      console.log('Topics response not captured, checking canvas visibility instead')
-      await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+      console.log(
+        'Topics response not captured, checking canvas visibility instead'
+      )
+      await expect(
+        page.locator('[data-testid="graph-canvas"]').first()
+      ).toBeVisible()
     }
 
     // Toggle back to teams view
@@ -246,8 +264,12 @@ test.describe('Key User Flows', () => {
         { timeout: 10000 }
       )
     } catch (error) {
-      console.log('Final teams response not captured, checking canvas visibility instead')
-      await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+      console.log(
+        'Final teams response not captured, checking canvas visibility instead'
+      )
+      await expect(
+        page.locator('[data-testid="graph-canvas"]').first()
+      ).toBeVisible()
     }
 
     console.log('✅ View toggling flow successful!')
@@ -324,25 +346,37 @@ test.describe('Key User Flows', () => {
       console.log('Retry successful!')
 
       // Now load the graph
-      await page.fill('input[placeholder="Enter organization name"]', 'retry-org')
+      await page.fill(
+        'input[placeholder="Enter organization name"]',
+        'retry-org'
+      )
       await page.click('button:has-text("Load Graph")')
 
-      await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+      await expect(
+        page.locator('[data-testid="graph-canvas"]').first()
+      ).toBeVisible()
 
       console.log('✅ Error handling and retry flow successful!')
     } catch (error) {
-      console.log('Scan API not available or different behavior, testing UI error handling instead')
-      
+      console.log(
+        'Scan API not available or different behavior, testing UI error handling instead'
+      )
+
       // Test UI-level error handling
-      await page.fill('input[placeholder="Enter organization name"]', 'retry-org')
+      await page.fill(
+        'input[placeholder="Enter organization name"]',
+        'retry-org'
+      )
       await page.click('button:has-text("Load Graph")')
-      
+
       // Should either load successfully or show error - either is acceptable
       await Promise.race([
-        page.waitForSelector('[data-testid="graph-canvas"]', { timeout: 10000 }),
+        page.waitForSelector('[data-testid="graph-canvas"]', {
+          timeout: 10000,
+        }),
         page.waitForSelector('text=Error loading graph', { timeout: 10000 }),
       ])
-      
+
       console.log('✅ Error handling tested at UI level')
     }
   })
@@ -392,7 +426,9 @@ test.describe('Key User Flows', () => {
     }
 
     // Final organization should eventually load
-    await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible({
+    await expect(
+      page.locator('[data-testid="graph-canvas"]').first()
+    ).toBeVisible({
       timeout: 10000,
     })
 
@@ -404,8 +440,12 @@ test.describe('Key User Flows', () => {
       )
       expect(lastOrgResponse.status()).toBe(200)
     } catch (error) {
-      console.log('Last org response not captured, checking canvas visibility instead')
-      await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+      console.log(
+        'Last org response not captured, checking canvas visibility instead'
+      )
+      await expect(
+        page.locator('[data-testid="graph-canvas"]').first()
+      ).toBeVisible()
     }
 
     console.log('✅ Rapid organization change handling successful!')
@@ -471,7 +511,7 @@ test.describe('Key User Flows', () => {
     )
     await page.click('button:has-text("Load Graph")')
 
-    const graphCanvas = page.locator('[data-testid="graph-canvas"]')
+    const graphCanvas = page.locator('[data-testid="graph-canvas"]').first()
     await expect(graphCanvas).toBeVisible()
 
     // Focus on graph canvas

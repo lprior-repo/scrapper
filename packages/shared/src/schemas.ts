@@ -108,7 +108,7 @@ export const GraphNodeTypeSchema = z.enum([
  */
 export const GraphEdgeTypeSchema = z.enum([
   'owns',
-  'member_of', 
+  'member_of',
   'codeowner',
   'maintained_by',
   'has_topic',

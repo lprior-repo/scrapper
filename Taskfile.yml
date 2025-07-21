@@ -24,18 +24,14 @@ tasks:
       - echo "🚀 Running complete test suite at maximum speed..."
       - task: ensure-neo4j-running
       - task: setup-dependencies
-      - echo "📦 Running Go unit tests..."
-      - go test ./... -v -timeout=60s -skip TestComprehensiveMutationTesting
+      - echo "📦 Running Go unit tests in parallel..."
+      - go test ./... -parallel 4 -timeout=30s -skip TestComprehensiveMutationTesting
       - echo "🎯 Running Go acceptance tests..."
-      - go test ./... -v -run Acceptance -timeout=180s
+      - go test ./... -run Acceptance -timeout=60s -parallel 2
       - echo "🌐 Starting API server for testing..."
       - task: start-api-for-testing
-      - echo "🔍 Running API health tests..."
-      - task: test-api-health
-      - echo "⚙️ Running API functional tests..."
-      - task: test-api-functional
-      - echo "🔍 Running API edge case tests..."
-      - task: test-api-edge-cases
+      - echo "🔍 Running all API tests in parallel..."
+      - task: test-api-all-parallel
       - echo "🎭 Running Playwright E2E/Integration tests..."
       - task: test:e2e
       - task: stop-api-for-testing
@@ -64,14 +60,61 @@ tasks:
       - echo "   • API rate limit monitoring"
       - echo "   • Database query performance tracking"
       - echo ""
-      - echo "Press Ctrl+C to stop all services gracefully."
-      - ./start-dev.sh
+      - echo "📁 Creating log directories..."
+      - mkdir -p logs
+      - echo "🔧 Starting API server with observability..."
+      - |
+        go run . api > logs/api.log 2>&1 &
+        echo $! > logs/api.pid
+        echo "API server started (PID: $(cat logs/api.pid))"
+      - echo "🌐 Starting frontend development server..."
+      - |
+        cd packages/webapp && bun --hot --port 3000 index.html > ../../logs/frontend.log 2>&1 &
+        echo $! > ../../logs/frontend.pid
+        echo "Frontend server started (PID: $(cat logs/frontend.pid))"
+      - echo "📋 Aggregating logs..."
+      - |
+        touch logs/aggregated.log
+        tail -f logs/api.log logs/frontend.log > logs/aggregated.log 2>&1 &
+        echo $! > logs/log-aggregator.pid
+      - echo ""
+      - echo "✅ All services running! Press Ctrl+C to stop gracefully."
+      - echo "📋 Use 'task dev:logs' to view real-time logs"
+      - echo "📈 Use 'task dev:metrics' to check service status"
+      - |
+        trap 'echo "\n🛑 Stopping all services..."; 
+        kill $(cat logs/api.pid 2>/dev/null) 2>/dev/null || true; 
+        kill $(cat logs/frontend.pid 2>/dev/null) 2>/dev/null || true; 
+        kill $(cat logs/log-aggregator.pid 2>/dev/null) 2>/dev/null || true; 
+        rm -f logs/*.pid; 
+        echo "✅ All services stopped gracefully."; exit 0' INT TERM
+        
+        echo "Waiting for services to be ready..."
+        timeout=30
+        count=0
+        until curl -s http://localhost:8081/api/health >/dev/null 2>&1 && curl -s http://localhost:3000 >/dev/null 2>&1; do
+          if [ $count -ge $timeout ]; then
+            echo "⚠️  Services didn't start within ${timeout} seconds"
+            echo "Check logs: task dev:logs"
+            break
+          fi
+          sleep 1
+          count=$((count + 1))
+        done
+        
+        if [ $count -lt $timeout ]; then
+          echo "✅ All services are ready and healthy!"
+        fi
+        
+        # Keep the task running
+        wait
 
   dev:webapp:
     desc: Start only the webapp development server
     cmds:
       - echo "🌐 Starting webapp development server..."
-      - bun run dev
+      - mkdir -p logs
+      - cd packages/webapp && bun --hot --port 3000 index.html
 
   dev:api:
     desc: Start only the API server
@@ -96,21 +139,40 @@ tasks:
       - echo "✅ Webapp build completed!"
 
   clean:
-    desc: Clean up development environment
+    desc: Comprehensive cleanup of build artifacts, caches, and dependencies
     cmds:
-      - echo "🧹 Cleaning up..."
+      - echo "🧹 Performing comprehensive cleanup..."
+      - echo "🛑 Stopping all services..."
       - go run . cleanup 2>/dev/null || true
-      - docker compose down
-      - rm -f coverage.out coverage.html gosec-report.json
+      - docker compose down --volumes --remove-orphans 2>/dev/null || true
+      - task: stop-api-for-testing
+      - echo "🗑️  Cleaning build artifacts..."
       - rm -rf bin/
       - rm -rf packages/webapp/build/
-      - echo "✅ Cleanup completed!"
+      - rm -rf packages/webapp/dist/
+      - rm -rf packages/shared/dist/
+      - echo "🧽 Cleaning test artifacts..."
+      - rm -f coverage.out coverage.html gosec-report.json
+      - rm -f api_test.log api_test.pid
+      - rm -rf test-results/
+      - rm -rf playwright-report/
+      - rm -rf tests/reports/
+      - echo "💾 Cleaning caches and dependencies..."
+      - rm -rf node_modules/
+      - rm -rf packages/webapp/node_modules/
+      - rm -rf packages/shared/node_modules/
+      - rm -rf .bun/
+      - rm -rf packages/webapp/.bun/
+      - echo "📋 Cleaning logs..."
+      - rm -rf logs/
+      - mkdir -p logs
+      - echo "✅ Comprehensive cleanup completed!"
 
   lint:
     desc: Run linting across entire codebase (TypeScript and Go)
     cmds:
       - echo "🔍 Running TypeScript/JavaScript linting..."
-      - bunx eslint packages/webapp/src packages/shared/src --ext .ts,.tsx
+      - bunx eslint packages/webapp/src packages/shared/src --ext .ts,.tsx,.js,.jsx
       - echo "🔍 Running Go linting..."
       - golangci-lint run ./... || echo "⚠️  golangci-lint not available, skipping Go linting"
       - echo "✅ Linting completed!"
@@ -119,7 +181,7 @@ tasks:
     desc: Run linting with auto-fix across entire codebase
     cmds:
       - echo "🔧 Running TypeScript/JavaScript linting with auto-fix..."
-      - bunx eslint packages/webapp/src packages/shared/src --ext .ts,.tsx --fix
+      - bunx eslint packages/webapp/src packages/shared/src --ext .ts,.tsx,.js,.jsx --fix
       - echo "🔧 Running Go formatting..."
       - go fmt ./...
       - echo "🔧 Running Go imports organization..."
@@ -137,42 +199,64 @@ tasks:
     desc: Format all code (TypeScript, Go, JSON, YAML, etc.)
     cmds:
       - echo "🎨 Formatting all code..."
-      - bunx prettier --write .
+      - echo "📝 Formatting TypeScript/JavaScript files..."
+      - bunx prettier --write "packages/**/*.{ts,tsx,js,jsx,json,md,css,html}"
+      - bunx prettier --write "*.{json,md,yml,yaml}"
+      - bunx prettier --write "tests/**/*.{ts,js,json}"
+      - echo "🐹 Formatting Go files..."
       - go fmt ./...
-      - echo "✅ Code formatting completed!"
+      - goimports -w . || echo "⚠️  goimports not available, skipping Go imports formatting"
+      - echo "📋 Formatting configuration files..."
+      - bunx prettier --write "*.config.{ts,js}" || true
+      - bunx prettier --write "**/*.config.{ts,js}" || true
+      - echo "✅ All code formatting completed!"
 
   test:e2e:
     desc: Run Playwright E2E tests
     cmds:
       - echo "🎭 Running Playwright E2E tests..."
-      - bunx playwright test --config=packages/webapp/playwright.config.ts
+      - bunx playwright test --config=playwright.config.ts
       - echo "✅ E2E tests completed!"
 
   test:e2e:ui:
     desc: Run Playwright E2E tests with UI
     cmds:
       - echo "🎭 Running Playwright E2E tests with UI..."
-      - bunx playwright test --config=packages/webapp/playwright.config.ts --ui
+      - bunx playwright test --config=playwright.config.ts --ui
 
   test:e2e:debug:
     desc: Debug Playwright E2E tests
     cmds:
       - echo "🐛 Running Playwright E2E tests in debug mode..."
-      - bunx playwright test --config=packages/webapp/playwright.config.ts --debug
+      - bunx playwright test --config=playwright.config.ts --debug
 
   test:visual:
     desc: Run visual regression tests
     cmds:
       - echo "📸 Running visual regression tests..."
-      - bunx playwright test --config=packages/webapp/playwright.config.ts --grep="Visual Regression"
+      - bunx playwright test --config=playwright.config.ts --grep="Visual Regression"
       - echo "✅ Visual regression tests completed!"
 
   test:integration:
     desc: Run integration tests
     cmds:
       - echo "🔗 Running integration tests..."
-      - bunx playwright test --config=packages/webapp/playwright.config.ts --grep="Integration"
+      - bunx playwright test --config=playwright.config.ts --grep="Integration"
       - echo "✅ Integration tests completed!"
+
+  test:component:
+    desc: Run component-specific tests
+    cmds:
+      - echo "🧩 Running component tests..."
+      - bunx playwright test --config=playwright.config.ts --grep="Component"
+      - echo "✅ Component tests completed!"
+
+  test:unit:
+    desc: Run unit tests (using bun test runner)
+    cmds:
+      - echo "🧪 Running unit tests..."
+      - cd packages/webapp && bun test
+      - echo "✅ Unit tests completed!"
 
   api-start:
     desc: Start API server and infrastructure for testing without running hurl tests
@@ -301,14 +385,14 @@ tasks:
         # Clean up any existing processes on ports
         lsof -ti:8081 | xargs -r kill -9 2>/dev/null || true
         lsof -ti:9094 | xargs -r kill -9 2>/dev/null || true
-        sleep 1
-        # Start API server in background
+        sleep 0.5
+        # Start API server in background with faster startup
         go run . api > api_test.log 2>&1 &
         echo $! > api_test.pid
 
-        # Wait for server to be ready
+        # Wait for server to be ready (reduced timeout)
         echo "⏳ Waiting for API server to be ready..."
-        timeout=30
+        timeout=15
         count=0
         until curl -s http://localhost:8081/api/health > /dev/null 2>&1; do
           if [ $count -ge $timeout ]; then
@@ -319,8 +403,7 @@ tasks:
             fi
             exit 1
           fi
-          echo "API server not ready yet. Waiting 1 second... (${count}/${timeout})"
-          sleep 1
+          sleep 0.5
           count=$((count + 1))
         done
         echo "✅ API server is ready!"
@@ -365,6 +448,22 @@ tasks:
     cmds:
       - hurl --test --variables-file tests/config/global.hurl tests/edge-cases/boundary-value-tests.hurl
       - hurl --test --variables-file tests/config/global.hurl tests/edge-cases/error-scenario-tests.hurl
+
+  test-api-all-parallel:
+    desc: Run all API tests in parallel for speed
+    internal: true
+    cmds:
+      - |
+        # Run API tests in parallel using background processes
+        hurl --test --variables-file tests/config/global.hurl tests/functional/health.hurl &
+        hurl --test --variables-file tests/config/global.hurl tests/functional/scan.hurl &
+        hurl --test --variables-file tests/config/global.hurl tests/functional/graph.hurl &
+        hurl --test --variables-file tests/config/global.hurl tests/functional/stats.hurl &
+        hurl --test --variables-file tests/config/global.hurl tests/edge-cases/boundary-value-tests.hurl &
+        hurl --test --variables-file tests/config/global.hurl tests/edge-cases/error-scenario-tests.hurl &
+        # Wait for all background jobs to complete
+        wait
+        echo "✅ All API tests completed in parallel"
 
   playwright:
     desc: Run Playwright E2E tests with full setup and teardown

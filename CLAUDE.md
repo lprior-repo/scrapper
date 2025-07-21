@@ -16,10 +16,9 @@ This project **exclusively uses Bun** as the JavaScript runtime and package mana
 ### Key Bun Features Used
 
 1. **Native Test Runner**: Using `bun test` instead of Jest
-2. **DOM Environment**: Using `happy-dom` for browser simulation
-3. **TypeScript Support**: Built-in TypeScript compilation
-4. **Hot Reloading**: Native development server with `--hot`
-5. **Bundle Building**: Using `bun build` for production builds
+2. **TypeScript Support**: Built-in TypeScript compilation
+3. **Hot Reloading**: Native development server with `--hot`
+4. **Bundle Building**: Using `bun build` for production builds
 
 ### Project Architecture
 
@@ -40,31 +39,34 @@ This project **exclusively uses Bun** as the JavaScript runtime and package mana
 
 ### Development Commands
 
-All commands use Bun exclusively for JavaScript Code
+**CRITICAL**: Use ONLY `task` commands. NO `bun run` or `bun test` commands allowed.
 
 ```bash
 # Development
-bun run dev                 # Start development server
-bun run dev:webapp         # Start webapp only
-bun run build              # Build for production
-bun run build:webapp       # Build webapp only
+task dev                   # Start development server with full stack
+task dev:webapp            # Start webapp only
+task dev:api               # Start API server only
+task build                 # Build all components
+task build:webapp          # Build webapp only
 
 # Testing
-bun run test               # Run all tests (unit + E2E)
-bun run test:unit          # Run Bun native unit tests
-bun run test:unit:watch    # Watch mode for unit tests
-bun run test:unit:coverage # Unit tests with coverage
-bun run test:e2e           # Run Playwright E2E tests
-bun run test:e2e:ui        # E2E tests with UI
-bun run test:e2e:debug     # Debug E2E tests
-bun run test:visual        # Visual regression tests
-bun run test:integration   # Backend integration tests
+task test                  # Run complete test suite (Go + E2E + API tests)
+task test:e2e              # Run Playwright E2E tests only
+task test:e2e:ui           # E2E tests with UI
+task test:e2e:debug        # Debug E2E tests
+task test:visual           # Visual regression tests
+task test:integration      # Integration tests
 
 # Code Quality
-bun run lint               # Lint all packages
-bun run lint:fix           # Fix linting issues
-bun run format             # Format code with Prettier
-bun run type-check         # TypeScript type checking
+task lint                  # Lint all packages (TypeScript + Go)
+task lint:fix              # Fix linting issues
+task format                # Format all code (TypeScript, Go, JSON, YAML)
+task type-check            # TypeScript type checking
+
+# Setup & Maintenance
+task setup                 # Complete setup for initial clone
+task clean                 # Clean up development environment
+task api-start             # Start API server for manual testing
 ```
 
 ### Test Stack (Bun Native)
@@ -101,7 +103,7 @@ exclude = ["src/index.tsx", "src/types.d.ts", "src/**/*.test.{ts,tsx}"]
 
 #### Playwright Configuration
 
-- Uses `bun run dev` for dev server
+- Uses `task dev` for dev server (never `bun run dev`)
 - Supports multiple browsers and devices
 - Visual regression testing enabled
 
@@ -195,12 +197,12 @@ const cy = cytoscape({
 3. **Start Development**:
 
    ```bash
-   bun run dev
+   task dev
    ```
 
 4. **Run Tests**:
    ```bash
-   bun run test
+   task test
    ```
 
 ### CI/CD Configuration
@@ -218,24 +220,24 @@ Ensure CI environments use Bun:
   run: bun install
 
 - name: Run tests
-  run: bun run test
+  run: task test
 ```
 
 ### Troubleshooting
 
 #### Common Issues
 
-1. **"npm not found"**: Good! Use `bun` instead
-2. **"jest command not found"**: Use `bun test` insteadIf
+1. **"npm not found"**: Good! Use `task` commands instead
+2. **"jest command not found"**: Use `task test` instead
 3. **Module resolution errors**: Ensure using ESM imports
 4. **TypeScript errors**: Bun has strict TypeScript checking
 
 #### Solutions
 
-- Always use `bun` commands
+- Always use `task` commands (never `bun run` or `bun test`)
 - Update imports to use ESM syntax
 - Check `bunfig.toml` for configuration
-- Use `bun run type-check` for TypeScript validation
+- Use `task type-check` for TypeScript validation
 
 ---
 

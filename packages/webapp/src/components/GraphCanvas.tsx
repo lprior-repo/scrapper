@@ -1,155 +1,161 @@
-import React, { useState, useEffect } from 'react'
-import { Effect } from 'effect'
+/**
+ * GraphCanvas Component with React 19 Suspense and Error Boundaries
+ *
+ * This component implements modern React patterns:
+ * - React 19 Suspense for data fetching
+ * - Error boundaries for error handling
+ * - Promise caching to prevent re-fetching
+ * - Proper loading states and error recovery
+ */
+
+import React, { Suspense } from 'react'
 
 import { CytoscapeGraphComponent } from './CytoscapeGraphComponent'
-import { GraphErrorDisplay } from './GraphErrorDisplay'
-import { GraphLoadingSpinner } from './GraphLoadingSpinner'
-import type { GraphNode, GraphEdge } from '../services'
+import { GraphErrorBoundary } from './ErrorBoundary'
+import { GraphLoadingSpinner } from './LoadingSpinner'
+import { useGraphData } from '../hooks/useGraphData'
 
-interface IGraphCanvasProps {
+interface GraphCanvasProps {
   readonly organization: string
   readonly useTopics: boolean
 }
 
-type GraphState =
-  | { readonly type: 'loading' }
-  | { readonly type: 'error'; readonly error: unknown }
-  | {
-      readonly type: 'success'
-      readonly data: {
-        readonly nodes: readonly GraphNode[]
-        readonly edges: readonly GraphEdge[]
-      }
-    }
-
-const createApiUrl = (
-  organization: string,
-  useTopics: boolean
-): Effect.Effect<string, Error> =>
-  !organization ||
-  typeof organization !== 'string' ||
-  organization.trim().length === 0
-    ? Effect.fail(
-        new Error(
-          'Organization parameter is required and must be a non-empty string'
-        )
-      )
-    : Effect.succeed(
-        (() => {
-          const cleanOrg = encodeURIComponent(organization.trim())
-          return `http://localhost:8081/api/graph/${cleanOrg}${useTopics ? '?useTopics=true' : ''}`
-        })()
-      )
-
-const validateGraphData = (
-  data: unknown
-): Effect.Effect<
-  {
-    readonly nodes: readonly GraphNode[]
-    readonly edges: readonly GraphEdge[]
-  },
-  Error
-> =>
-  !data || typeof data !== 'object'
-    ? Effect.fail(new Error('Invalid graph data: expected object'))
-    : Effect.succeed(
-        (() => {
-          const graphData = data as {
-            readonly nodes?: unknown
-            readonly edges?: unknown
-          }
-          const nodes = Array.isArray(graphData.nodes) ? graphData.nodes : []
-          const edges = Array.isArray(graphData.edges) ? graphData.edges : []
-          console.warn(
-            `Received ${nodes.length} nodes and ${edges.length} edges from API`
-          )
-          return {
-            nodes: nodes as readonly GraphNode[],
-            edges: edges as readonly GraphEdge[],
-          }
-        })()
-      )
-
-const fetchGraphData = (url: string) =>
-  Effect.gen(function* () {
-    const fetchResponse = yield* Effect.tryPromise({
-      try: () => fetch(url),
-      catch: (error) => new Error(`Network error: ${error instanceof Error ? error.message : String(error)}`)
-    })
-
-    if (!fetchResponse.ok) {
-      yield* Effect.fail(new Error(`HTTP error! status: ${fetchResponse.status}`))
-    }
-
-    const graphApiJson = yield* Effect.tryPromise({
-      try: () => fetchResponse.json(),
-      catch: (error) => new Error(`JSON parsing error: ${error instanceof Error ? error.message : String(error)}`)
-    })
-
-    if (!graphApiJson || typeof graphApiJson !== 'object') {
-      yield* Effect.fail(new Error('Invalid API response format'))
-    }
-
-    return yield* validateGraphData(graphApiJson.data)
-  })
-
-const renderGraphState = (state: GraphState): React.ReactElement => (
-  <div data-testid="graph-canvas" style={{ width: '100%', height: '100vh' }}>
-    {state.type === 'loading' ? (
-      <GraphLoadingSpinner />
-    ) : state.type === 'error' ? (
-      <GraphErrorDisplay error={state.error} />
-    ) : state.type === 'success' ? (
-      (() => {
-        const { nodes, edges } = state.data
-        return !nodes && !edges ? (
-          <GraphErrorDisplay error={new Error('No graph data received')} />
-        ) : (
-          <CytoscapeGraphComponent nodes={nodes} edges={edges} />
-        )
-      })()
-    ) : (
-      <GraphErrorDisplay error={new Error('Unknown graph state')} />
-    )}
-  </div>
-)
-
-export const GraphCanvas: React.FC<IGraphCanvasProps> = ({
+/**
+ * GraphRenderer - The component that actually uses the data
+ * This component will suspend when data is not available
+ */
+const GraphRenderer: React.FC<GraphCanvasProps> = ({
   organization,
   useTopics,
 }) => {
-  const [state, setState] = useState<GraphState>({ type: 'loading' })
+  // This will suspend the component if data is not available
+  const { nodes, edges } = useGraphData(organization, useTopics)
 
-  useEffect(() => {
-    if (
-      !organization ||
-      typeof organization !== 'string' ||
-      organization.trim().length === 0
-    ) {
-      setState({
-        type: 'error',
-        error: new Error('Organization name is required'),
-      })
-      return
-    }
+  // Handle empty data case
+  if (!nodes || !edges || (nodes.length === 0 && edges.length === 0)) {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center bg-dark-bg px-4"
+        data-testid="empty-graph-state"
+      >
+        <div className="text-center">
+          <div className="mb-4">
+            <svg
+              className="mx-auto h-12 w-12 text-dark-text-secondary"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M9 9l3-3 3 3"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-dark-text mb-2">
+            No Graph Data Available
+          </h3>
+          <p className="text-sm text-dark-text-secondary mb-4">
+            No codeowners or repository data found for{' '}
+            <span className="font-medium text-accent-blue">{organization}</span>
+            {useTopics && ' with topics enabled'}.
+          </p>
+          <p className="text-xs text-dark-text-secondary">
+            Make sure the organization exists and has public repositories with
+            CODEOWNERS files.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
-    setState({ type: 'loading' })
+  console.log('Rendering graph with data:', {
+    organization,
+    useTopics,
+    nodesCount: nodes.length,
+    edgesCount: edges.length,
+  })
 
-    const pipeline = Effect.gen(function* () {
-      const url = yield* createApiUrl(organization, useTopics)
-      return yield* fetchGraphData(url)
-    })
+  return (
+    <div data-testid="graph-canvas" className="w-full h-screen bg-dark-bg">
+      <CytoscapeGraphComponent nodes={nodes} edges={edges} />
+    </div>
+  )
+}
 
-    Effect.runPromise(pipeline)
-      .then((graphResult) => {
-        console.warn('Graph data loaded successfully:', graphResult)
-        setState({ type: 'success', data: graphResult })
-      })
-      .catch((error) => {
-        console.error('Failed to load graph data:', error)
-        setState({ type: 'error', error })
-      })
-  }, [organization, useTopics])
+/**
+ * Main GraphCanvas component with Suspense and Error Boundary
+ */
+export const GraphCanvas: React.FC<GraphCanvasProps> = ({
+  organization,
+  useTopics,
+}) => {
+  // Early validation to provide better error messages
+  if (
+    !organization ||
+    typeof organization !== 'string' ||
+    organization.trim().length === 0
+  ) {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center bg-dark-bg px-4"
+        data-testid="graph-canvas-error"
+      >
+        <div className="text-center">
+          <div className="mb-4">
+            <svg
+              className="mx-auto h-12 w-12 text-accent-red"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-accent-red mb-2">
+            Invalid Configuration
+          </h3>
+          <p className="text-sm text-dark-text-secondary">
+            Organization parameter is required and must be a non-empty string.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
-  return renderGraphState(state)
+  return (
+    <GraphErrorBoundary
+      title="Graph Visualization Error"
+      showDetails={process.env.NODE_ENV === 'development'}
+      resetKeys={[organization, useTopics]} // Reset error boundary when these props change
+      onError={(error, errorInfo) => {
+        console.error('GraphCanvas Error Boundary caught an error:', {
+          error,
+          errorInfo,
+          organization,
+          useTopics,
+        })
+
+        // TODO: Send to error monitoring service
+        // Example: Sentry.captureException(error, { contexts: { react: errorInfo } })
+      }}
+    >
+      <Suspense
+        fallback={
+          <GraphLoadingSpinner stage="fetching" organization={organization} />
+        }
+      >
+        <GraphRenderer organization={organization} useTopics={useTopics} />
+      </Suspense>
+    </GraphErrorBoundary>
+  )
 }

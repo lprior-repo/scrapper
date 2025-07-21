@@ -52,6 +52,8 @@ type GitHubOrganization struct {
 	Description string    `json:"description"`
 	URL         string    `json:"url"`
 	Email       string    `json:"email"`
+	PublicRepos int       `json:"public_repos"`
+	Followers   int       `json:"followers"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

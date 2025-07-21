@@ -29,7 +29,9 @@ test.describe('Visual Regression Tests', () => {
 
   test('should match input states visually', async ({ page }) => {
     // Test input states functionally instead of visually for more reliability
-    const orgInput = page.locator('input[placeholder="Enter organization name"]')
+    const orgInput = page.locator(
+      'input[placeholder="Enter organization name"]'
+    )
     const checkbox = page.locator('input[type="checkbox"]')
     const button = page.locator('button:has-text("Load Graph")')
 
@@ -66,11 +68,13 @@ test.describe('Visual Regression Tests', () => {
     // Hover state - verify button is still clickable
     await button.hover()
     await expect(button).toBeEnabled()
-    
+
     // Verify button click works
     await button.click()
     // Should trigger loading state
-    await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+    await expect(
+      page.locator('[data-testid="graph-canvas"]').first()
+    ).toBeVisible()
   })
 
   test('should match loading state appearance', async ({ page }) => {
@@ -110,16 +114,18 @@ test.describe('Visual Regression Tests', () => {
     await page.click('button:has-text("Load Graph")')
 
     // Wait for error state and verify functional behavior
-    await expect(page.locator('h2:has-text("Error loading graph")')).toBeVisible()
-    
+    await expect(
+      page.locator('h2:has-text("Error loading graph")')
+    ).toBeVisible()
+
     // Verify error state functionality instead of visual appearance
     const errorMessage = page.locator('h2:has-text("Error loading graph")')
     await expect(errorMessage).toBeVisible()
-    
+
     // Verify that we can recover by trying a different organization
     await page.fill('input[placeholder="Enter organization name"]', 'test-org')
     await expect(page.locator('button:has-text("Load Graph")')).toBeEnabled()
-    
+
     console.log('✅ Error state functionality verified')
   })
 
@@ -233,7 +239,9 @@ test.describe('Visual Regression Tests', () => {
     // Wait for Cytoscape to initialize and layout to complete
     await page.waitForFunction(
       () => {
-        const canvas = document.querySelector('[data-testid="graph-canvas"]')
+        const canvas = document.querySelector(
+          '[data-testid="graph-canvas"]'
+        )
         return canvas && canvas.children.length > 0
       },
       { timeout: 10000 }
@@ -250,18 +258,20 @@ test.describe('Visual Regression Tests', () => {
     })
 
     // Verify graph functionality instead of visual appearance
-    const graphCanvas = page.locator('[data-testid="graph-canvas"]')
+    const graphCanvas = page.locator('[data-testid="graph-canvas"]').first()
     await expect(graphCanvas).toBeVisible()
-    
+
     // Verify the graph canvas has proper dimensions (indicating it rendered properly)
     const canvasBox = await graphCanvas.boundingBox()
     expect(canvasBox?.width).toBeGreaterThan(0)
     expect(canvasBox?.height).toBeGreaterThan(0)
-    
+
     // Test that the graph accepts interaction (can be clicked)
     await graphCanvas.click()
-    
-    console.log('✅ Graph canvas with different node types rendered successfully')
+
+    console.log(
+      '✅ Graph canvas with different node types rendered successfully'
+    )
   })
 
   test('should match graph with topics view', async ({ page }) => {
@@ -345,7 +355,9 @@ test.describe('Visual Regression Tests', () => {
     // Wait for Cytoscape to initialize and layout to complete
     await page.waitForFunction(
       () => {
-        const canvas = document.querySelector('[data-testid="graph-canvas"]')
+        const canvas = document.querySelector(
+          '[data-testid="graph-canvas"]'
+        )
         return canvas && canvas.children.length > 0
       },
       { timeout: 10000 }
@@ -362,17 +374,17 @@ test.describe('Visual Regression Tests', () => {
     })
 
     // Verify graph with topics functionality instead of visual appearance
-    const graphCanvas = page.locator('[data-testid="graph-canvas"]')
+    const graphCanvas = page.locator('[data-testid="graph-canvas"]').first()
     await expect(graphCanvas).toBeVisible()
-    
+
     // Verify the graph canvas has proper dimensions (indicating it rendered properly)
     const canvasBox = await graphCanvas.boundingBox()
     expect(canvasBox?.width).toBeGreaterThan(0)
     expect(canvasBox?.height).toBeGreaterThan(0)
-    
+
     // Test that the graph accepts interaction (can be clicked)
     await graphCanvas.click()
-    
+
     console.log('✅ Graph canvas with topics view rendered successfully')
   })
 
@@ -391,17 +403,17 @@ test.describe('Visual Regression Tests', () => {
     await page.waitForTimeout(1000)
 
     // Verify empty graph functionality instead of visual appearance
-    const graphCanvas = page.locator('[data-testid="graph-canvas"]')
+    const graphCanvas = page.locator('[data-testid="graph-canvas"]').first()
     await expect(graphCanvas).toBeVisible()
-    
+
     // Verify the graph canvas has proper dimensions even when empty
     const canvasBox = await graphCanvas.boundingBox()
     expect(canvasBox?.width).toBeGreaterThan(0)
     expect(canvasBox?.height).toBeGreaterThan(0)
-    
+
     // Empty graph should still be interactive
     await graphCanvas.click()
-    
+
     console.log('✅ Empty graph state handled successfully')
   })
 })

@@ -7,15 +7,19 @@
     "dev": "bun --hot --port 3000 packages/webapp/index.html",
     "dev:api": "go run . api",
     "build": "bun build packages/webapp/src/index.tsx --outdir packages/webapp/build",
+    "test": "cd packages/webapp && bun test",
+    "test:unit": "cd packages/webapp && bun test --coverage",
+    "test:watch": "cd packages/webapp && bun test --watch",
     "lint": "eslint packages/webapp/src packages/shared/src --ext .ts,.tsx",
     "lint:fix": "eslint packages/webapp/src packages/shared/src --ext .ts,.tsx --fix",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
-    "test:e2e": "playwright test --config=packages/webapp/playwright.config.ts",
-    "test:e2e:ui": "playwright test --config=packages/webapp/playwright.config.ts --ui",
-    "test:e2e:debug": "playwright test --config=packages/webapp/playwright.config.ts --debug",
-    "test:visual": "playwright test --config=packages/webapp/playwright.config.ts --grep=\"Visual Regression\"",
-    "test:integration": "playwright test --config=packages/webapp/playwright.config.ts --grep=\"Integration\""
+    "test:e2e": "playwright test --config=playwright.config.ts",
+    "test:e2e:ui": "playwright test --config=playwright.config.ts --ui",
+    "test:e2e:debug": "playwright test --config=playwright.config.ts --debug",
+    "test:visual": "playwright test --config=playwright.config.ts --grep=\"Visual Regression\"",
+    "test:integration": "playwright test --config=playwright.config.ts --grep=\"Integration\"",
+    "test:all": "bun run test && bun run test:e2e"
   },
   "dependencies": {
     "@effect-rx/rx-react": "^0.37.0",
@@ -30,8 +34,9 @@
     "@upstash/context7-mcp": "^1.0.14",
     "cytoscape": "^3.29.2",
     "effect": "^3.16.16",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "19.0.0-rc-f994737d14-20240522",
+    "react-dom": "19.0.0-rc-f994737d14-20240522",
+    "react-error-boundary": "^4.0.13",
     "zod": "^4.0.0"
   },
   "devDependencies": {
@@ -41,10 +46,11 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/bun": "latest",
     "@types/cytoscape": "^3.21.1",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^8.37.0",
     "@typescript-eslint/parser": "^8.37.0",
+    "autoprefixer": "^10.4.19",
     "bun-types": "latest",
     "eslint": "^9.31.0",
     "eslint-config-prettier": "^10.1.5",
@@ -54,7 +60,9 @@
     "eslint-plugin-react": "^7.33.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "happy-dom": "^18.0.1",
+    "postcss": "^8.4.38",
     "prettier": "^3.1.0",
+    "tailwindcss": "^3.4.3",
     "typescript": "^5.3.2"
   }
 }

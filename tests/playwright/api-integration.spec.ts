@@ -3,6 +3,15 @@ import { test, expect } from '@playwright/test'
 test.describe('API Integration Tests', () => {
   // These tests verify that the frontend correctly handles real API responses
 
+  test.beforeEach(async () => {
+    test
+      .info()
+      .annotations.push(
+        { type: 'category', description: 'integration' },
+        { type: 'component', description: 'api' }
+      )
+  })
+
   test('should handle scan API response structure', async ({ page }) => {
     // Navigate to app
     await page.goto('/')
@@ -35,10 +44,14 @@ test.describe('API Integration Tests', () => {
           `Scan successful: ${scanData.data.summary.totalRepositories} repos, ${scanData.data.summary.totalCodeowners} codeowners`
         )
       } else if (scanResponse.status() === 404) {
-        console.log('Scan endpoint not found - this is acceptable for this test')
+        console.log(
+          'Scan endpoint not found - this is acceptable for this test'
+        )
         // Mark as successful if the endpoint doesn't exist - this is just checking structure if it does exist
       } else if (scanResponse.status() >= 400 && scanResponse.status() < 500) {
-        console.log(`Scan failed with client error: ${scanResponse.status()} - this is acceptable`)
+        console.log(
+          `Scan failed with client error: ${scanResponse.status()} - this is acceptable`
+        )
         // Client errors are acceptable for this test - we're testing structure when it works
       } else {
         console.log(`Scan failed with status: ${scanResponse.status()}`)
@@ -180,6 +193,7 @@ test.describe('API Integration Tests', () => {
     // Check what state we ended up in
     const hasCanvas = await page
       .locator('[data-testid="graph-canvas"]')
+      .first()
       .isVisible()
     const hasError = await page.locator('text=Error loading graph').isVisible()
 
@@ -189,6 +203,7 @@ test.describe('API Integration Tests', () => {
       // Verify the canvas is properly initialized
       const canvasBox = await page
         .locator('[data-testid="graph-canvas"]')
+        .first()
         .boundingBox()
       expect(canvasBox?.width).toBeGreaterThan(0)
       expect(canvasBox?.height).toBeGreaterThan(0)

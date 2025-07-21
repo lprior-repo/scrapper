@@ -66,7 +66,7 @@ test.describe('GitHub Automation', () => {
     expect(graphData.data).toHaveProperty('edges')
 
     // Step 3: Check if the graph canvas is loaded with specific selector
-    const graphCanvas = page.locator('[data-testid="graph-canvas"]')
+    const graphCanvas = page.locator('[data-testid="graph-canvas"]').first()
     await expect(graphCanvas).toBeVisible({ timeout: 10000 })
 
     // Verify we have actual graph data
@@ -154,7 +154,7 @@ test.describe('GitHub Automation', () => {
     await loadGraphButton.click()
 
     // Wait for the graph canvas to appear (the API returns 200 OK with empty data)
-    const graphCanvas = page.locator('[data-testid="graph-canvas"]')
+    const graphCanvas = page.locator('[data-testid="graph-canvas"]').first()
     await expect(graphCanvas).toBeVisible({ timeout: 10000 })
 
     // The graph should load but be empty (no nodes/edges) since the organization doesn't exist

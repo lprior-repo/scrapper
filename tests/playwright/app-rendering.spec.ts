@@ -2,6 +2,13 @@ import { test, expect } from '@playwright/test'
 
 test.describe('App Rendering and Component Display', () => {
   test.beforeEach(async ({ page }) => {
+    // Use tag metadata for test organization
+    test
+      .info()
+      .annotations.push(
+        { type: 'category', description: 'rendering' },
+        { type: 'component', description: 'app' }
+      )
     await page.goto('/')
   })
 
@@ -88,7 +95,9 @@ test.describe('App Rendering and Component Display', () => {
     await expect(page.locator('text=Loading graph data...')).toBeVisible()
 
     // Wait for loading to complete
-    await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible({
+    await expect(
+      page.locator('[data-testid="graph-canvas"]').first()
+    ).toBeVisible({
       timeout: 5000,
     })
   })
@@ -112,8 +121,10 @@ test.describe('App Rendering and Component Display', () => {
     await page.click('button:has-text("Load Graph")')
 
     // Check error display - the heading should be visible
-    await expect(page.locator('h2:has-text("Error loading graph")')).toBeVisible()
-    
+    await expect(
+      page.locator('h2:has-text("Error loading graph")')
+    ).toBeVisible()
+
     // Check that some error message is displayed (Effect.js wraps errors differently)
     await expect(page.locator('p')).toBeVisible()
   })
@@ -135,8 +146,8 @@ test.describe('App Rendering and Component Display', () => {
                 type: 'user',
                 label: 'Test User',
                 data: {},
-                position: { x: 0, y: 0 }
-              }
+                position: { x: 0, y: 0 },
+              },
             ],
             edges: [
               {
@@ -144,8 +155,8 @@ test.describe('App Rendering and Component Display', () => {
                 source: 'node-1',
                 target: 'nonexistent-node',
                 label: 'test edge',
-                type: 'owns'
-              }
+                type: 'owns',
+              },
             ],
           },
         }),
@@ -164,25 +175,27 @@ test.describe('App Rendering and Component Display', () => {
     // The component should either show an error or gracefully handle the bad data
     // by filtering it out and showing a canvas (potentially empty)
     const errorHeading = page.locator('h2:has-text("Error loading graph")')
-    const graphCanvas = page.locator('[data-testid="graph-canvas"]')
-    
+    const graphCanvas = page.locator('[data-testid="graph-canvas"]').first()
+
     // The graph canvas should be visible (as the test-id is on the container)
     // but the content might show an error or handle bad data gracefully
     await expect(graphCanvas).toBeVisible()
-    
+
     // Check if there's an error displayed within the canvas area or if it handled the data
     const hasErrorWithinCanvas = await errorHeading.isVisible()
-    
+
     if (hasErrorWithinCanvas) {
       console.log('✅ Component correctly showed error for malformed data')
     } else {
-      console.log('✅ Component gracefully handled malformed data by filtering it')
+      console.log(
+        '✅ Component gracefully handled malformed data by filtering it'
+      )
       // The component should not crash even with bad data
       await expect(graphCanvas).toBeVisible()
     }
   })
 
-  test('should properly display nodes and edges in GraphCanvas', async ({
+  test('should properly display nodes and edges in GraphCanvas @graph @rendering', async ({
     page,
   }) => {
     const mockGraphData = {
@@ -239,8 +252,8 @@ test.describe('App Rendering and Component Display', () => {
     await page.fill('input[placeholder="Enter organization name"]', 'github')
     await page.click('button:has-text("Load Graph")')
 
-    // Wait for graph canvas
-    const graphCanvas = page.locator('[data-testid="graph-canvas"]')
+    // Wait for graph canvas (use .first() to handle any duplicates)
+    const graphCanvas = page.locator('[data-testid="graph-canvas"]').first()
     await expect(graphCanvas).toBeVisible()
 
     // Verify canvas has correct dimensions
@@ -248,8 +261,26 @@ test.describe('App Rendering and Component Display', () => {
     expect(canvasBox?.width).toBeGreaterThan(0)
     expect(canvasBox?.height).toBeGreaterThan(0)
 
-    // Check that cytoscape container is created
-    await expect(graphCanvas).toBeVisible()
+    // Check that cytoscape container is created within the canvas
+    await expect(
+      page.locator('[data-testid="cytoscape-container"]')
+    ).toBeVisible({
+      timeout: 10000,
+    })
+
+    // Verify that cytoscape actually renders the graph
+    const cytoscapeContainer = page.locator(
+      '[data-testid="cytoscape-container"]'
+    )
+    const cytoscapeBox = await cytoscapeContainer.boundingBox()
+    expect(cytoscapeBox?.width).toBeGreaterThan(0)
+    expect(cytoscapeBox?.height).toBeGreaterThan(0)
+
+    // Test that cytoscape instance is properly initialized by checking for cytoscape classes
+    const hasCytoscapeClass = await cytoscapeContainer.evaluate((el) =>
+      el.classList.contains('__________cytoscape_container')
+    )
+    expect(hasCytoscapeClass).toBe(true)
   })
 
   test('should update graph when switching between teams/topics view', async ({
@@ -297,7 +328,9 @@ test.describe('App Rendering and Component Display', () => {
     await page.click('button:has-text("Load Graph")')
 
     // Wait for first graph to load
-    await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+    await expect(
+      page.locator('[data-testid="graph-canvas"]').first()
+    ).toBeVisible()
 
     // Now switch to topics view
     await page.check('input[type="checkbox"]')
@@ -329,7 +362,9 @@ test.describe('App Rendering and Component Display', () => {
 
     // Load first graph
     await page.click('button:has-text("Load Graph")')
-    await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+    await expect(
+      page.locator('[data-testid="graph-canvas"]').first()
+    ).toBeVisible()
 
     // Change organization
     await page.fill('input[placeholder="Enter organization name"]', 'org2')
@@ -341,7 +376,113 @@ test.describe('App Rendering and Component Display', () => {
     await page.click('button:has-text("Load Graph")')
 
     // Canvas should update without losing checkbox state
-    await expect(page.locator('[data-testid="graph-canvas"]')).toBeVisible()
+    await expect(
+      page.locator('[data-testid="graph-canvas"]').first()
+    ).toBeVisible()
     await expect(page.locator('input[type="checkbox"]')).toBeChecked()
+  })
+
+  test('should verify cytoscape graph rendering with specific node interactions @graph @cytoscape', async ({
+    page,
+  }) => {
+    test
+      .info()
+      .annotations.push(
+        { type: 'feature', description: 'graph-rendering' },
+        { type: 'priority', description: 'critical' }
+      )
+
+    const mockGraphData = {
+      data: {
+        nodes: [
+          {
+            id: 'test-org',
+            type: 'organization',
+            label: 'Test Organization',
+            data: { name: 'Test Organization' },
+            position: { x: 300, y: 200 },
+          },
+          {
+            id: 'test-repo',
+            type: 'repository',
+            label: 'Test Repository',
+            data: { name: 'Test Repository', stars: 100 },
+            position: { x: 500, y: 300 },
+          },
+          {
+            id: 'test-user',
+            type: 'user',
+            label: 'Test User',
+            data: { login: 'testuser' },
+            position: { x: 100, y: 400 },
+          },
+        ],
+        edges: [
+          {
+            id: 'edge-1',
+            source: 'test-org',
+            target: 'test-repo',
+            type: 'owns',
+            label: 'owns',
+          },
+          {
+            id: 'edge-2',
+            source: 'test-repo',
+            target: 'test-user',
+            type: 'maintained_by',
+            label: 'maintained by',
+          },
+        ],
+      },
+    }
+
+    await page.route('**/api/graph/**', (route) => {
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify(mockGraphData),
+      })
+    })
+
+    await page.fill('input[placeholder="Enter organization name"]', 'test-org')
+    await page.click('button:has-text("Load Graph")')
+
+    // Wait for graph canvas to be visible (use .first() to handle any duplicates)
+    await expect(
+      page.locator('[data-testid="graph-canvas"]').first()
+    ).toBeVisible()
+
+    // Wait for cytoscape container to be properly initialized
+    const cytoscapeContainer = page.locator(
+      '[data-testid="cytoscape-container"]'
+    )
+    await expect(cytoscapeContainer).toBeVisible({ timeout: 15000 })
+
+    // Verify cytoscape is properly initialized by checking for the cytoscape class
+    await cytoscapeContainer.waitFor({ state: 'attached' })
+
+    // Wait a bit for cytoscape to fully initialize the graph
+    await page.waitForTimeout(2000)
+
+    // Verify that the container has cytoscape elements by checking the DOM
+    const hasGraphElements = await cytoscapeContainer.evaluate(() => {
+      const container = document.querySelector(
+        '[data-testid="cytoscape-container"]'
+      )
+      return container && container.children.length > 0
+    })
+
+    expect(hasGraphElements).toBe(true)
+
+    // Verify that cytoscape styling is applied
+    const hasCytoscapeStyle = await cytoscapeContainer.evaluate(() => {
+      const container = document.querySelector(
+        '[data-testid="cytoscape-container"]'
+      )
+      return (
+        container && window.getComputedStyle(container).position !== 'static'
+      )
+    })
+
+    expect(hasCytoscapeStyle).toBe(true)
   })
 })

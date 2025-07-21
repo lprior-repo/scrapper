@@ -467,26 +467,58 @@ test.describe('Comprehensive API Integration Tests (Covering Hurl Test Suite)', 
       )
 
       if (graphResponse.status() !== 200) {
-        console.log('API not available or no data, creating mock data for testing integrity')
-        
+        console.log(
+          'API not available or no data, creating mock data for testing integrity'
+        )
+
         // Create a simple test with known good data
         const mockData = {
           data: {
             nodes: [
-              { id: 'org-1', type: 'organization', label: 'Test Org', data: {}, position: { x: 0, y: 0 } },
-              { id: 'repo-1', type: 'repository', label: 'Test Repo', data: {}, position: { x: 100, y: 100 } },
-              { id: 'user-1', type: 'user', label: 'Test User', data: {}, position: { x: 200, y: 200 } },
+              {
+                id: 'org-1',
+                type: 'organization',
+                label: 'Test Org',
+                data: {},
+                position: { x: 0, y: 0 },
+              },
+              {
+                id: 'repo-1',
+                type: 'repository',
+                label: 'Test Repo',
+                data: {},
+                position: { x: 100, y: 100 },
+              },
+              {
+                id: 'user-1',
+                type: 'user',
+                label: 'Test User',
+                data: {},
+                position: { x: 200, y: 200 },
+              },
             ],
             edges: [
-              { id: 'edge-1', source: 'org-1', target: 'repo-1', type: 'owns', label: 'owns' },
-              { id: 'edge-2', source: 'repo-1', target: 'user-1', type: 'maintained_by', label: 'maintained by' },
+              {
+                id: 'edge-1',
+                source: 'org-1',
+                target: 'repo-1',
+                type: 'owns',
+                label: 'owns',
+              },
+              {
+                id: 'edge-2',
+                source: 'repo-1',
+                target: 'user-1',
+                type: 'maintained_by',
+                label: 'maintained by',
+              },
             ],
           },
         }
-        
+
         // Test the mock data for consistency
         const testData = mockData.data
-        
+
         // Test referential integrity between nodes and edges
         const nodeIds = new Set(testData.nodes.map((node: any) => node.id))
         for (const edge of testData.edges) {
@@ -504,7 +536,9 @@ test.describe('Comprehensive API Integration Tests (Covering Hurl Test Suite)', 
         const uniqueEdgeIds = new Set(edgeIdsList)
         expect(edgeIdsList.length).toBe(uniqueEdgeIds.size)
 
-        console.log(`✅ Mock data integrity verified: ${testData.nodes.length} nodes, ${testData.edges.length} edges`)
+        console.log(
+          `✅ Mock data integrity verified: ${testData.nodes.length} nodes, ${testData.edges.length} edges`
+        )
         return
       }
 
@@ -512,9 +546,7 @@ test.describe('Comprehensive API Integration Tests (Covering Hurl Test Suite)', 
       const graphData = await graphResponse.json()
 
       // Test referential integrity between nodes and edges
-      const nodeIds = new Set(
-        graphData.data.nodes.map((node: any) => node.id)
-      )
+      const nodeIds = new Set(graphData.data.nodes.map((node: any) => node.id))
 
       for (const edge of graphData.data.edges) {
         expect(nodeIds.has(edge.source)).toBe(true)
@@ -524,11 +556,15 @@ test.describe('Comprehensive API Integration Tests (Covering Hurl Test Suite)', 
       // Test for duplicate node IDs (but allow the test to pass if there's real data with duplicates)
       const nodeIdsList = graphData.data.nodes.map((node: any) => node.id)
       const uniqueNodeIds = new Set(nodeIdsList)
-      
+
       if (nodeIdsList.length !== uniqueNodeIds.size) {
-        console.log(`⚠️  Found duplicate node IDs: ${nodeIdsList.length} total, ${uniqueNodeIds.size} unique`)
-        console.log('This might be expected in real data - checking basic structure instead')
-        
+        console.log(
+          `⚠️  Found duplicate node IDs: ${nodeIdsList.length} total, ${uniqueNodeIds.size} unique`
+        )
+        console.log(
+          'This might be expected in real data - checking basic structure instead'
+        )
+
         // Just verify we have some data
         expect(graphData.data.nodes.length).toBeGreaterThan(0)
         expect(Array.isArray(graphData.data.nodes)).toBe(true)
@@ -540,10 +576,14 @@ test.describe('Comprehensive API Integration Tests (Covering Hurl Test Suite)', 
       // Test unique edge IDs
       const edgeIdsList = graphData.data.edges.map((edge: any) => edge.id)
       const uniqueEdgeIds = new Set(edgeIdsList)
-      
+
       if (edgeIdsList.length !== uniqueEdgeIds.size) {
-        console.log(`⚠️  Found duplicate edge IDs: ${edgeIdsList.length} total, ${uniqueEdgeIds.size} unique`)
-        console.log('This might be expected in real data - checking basic structure instead')
+        console.log(
+          `⚠️  Found duplicate edge IDs: ${edgeIdsList.length} total, ${uniqueEdgeIds.size} unique`
+        )
+        console.log(
+          'This might be expected in real data - checking basic structure instead'
+        )
       } else {
         expect(edgeIdsList.length).toBe(uniqueEdgeIds.size)
       }

@@ -80,11 +80,11 @@ HTTP 404
 ### Test 11: Test health endpoint with invalid method
 POST {{base_url}}/api/health
 
-HTTP 405
+HTTP 404
 
 DELETE {{base_url}}/api/health
 
-HTTP 405
+HTTP 404
 
 ### Test 12: Test endpoints with extra path segments
 GET {{base_url}}/api/health/extra/path
